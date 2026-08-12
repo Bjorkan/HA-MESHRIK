@@ -17,7 +17,7 @@ Exactly **one** connection method must be configured at a time.
 Connect your radio via USB. Set `serial_port` to the device path, e.g. `/dev/ttyUSB0`.  
 Leave `serial_port` empty to let RemoteTerm auto-detect the device.
 
-Your device must appear in the list above the options (the app's `devices` section maps `/dev/ttyUSB0`, `/dev/ttyUSB1`, `/dev/ttyACM0`, and `/dev/ttyACM1` into the container by default). If your radio appears at a different path, add it to the `devices` list in the app configuration.
+Any USB serial device on the host (e.g. `/dev/ttyUSB0`, `/dev/ttyACM5`) is automatically accessible to the app — set `serial_port` to whatever path your radio actually enumerates as.
 
 ### TCP (network)
 

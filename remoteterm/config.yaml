@@ -20,14 +20,10 @@ hassio_api: true
 services:
   - mqtt:want
 bluetooth: true
+uart: true
 map:
   - data:rw
   - share:rw
-devices:
-  - /dev/ttyUSB0
-  - /dev/ttyUSB1
-  - /dev/ttyACM0
-  - /dev/ttyACM1
 options:
   serial_port: ""
   serial_baudrate: 115200
