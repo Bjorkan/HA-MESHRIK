@@ -1,5 +1,6 @@
 # The release workflow overrides this with the immutable digest behind :latest.
 # The default keeps local builds convenient while stable CI remains reproducible.
+# hadolint ignore=DL3006
 ARG MESHRIK_IMAGE=ghcr.io/bjorkan/meshrik:latest
 FROM ${MESHRIK_IMAGE}
 
@@ -16,6 +17,7 @@ LABEL io.hass.version="${BUILD_VERSION}" \
       org.opencontainers.image.licenses="MIT"
 
 # Home Assistant wrapper dependencies.
+# hadolint ignore=DL3008
 RUN apt-get update \
     && apt-get install -y --no-install-recommends jq curl \
     && rm -rf /var/lib/apt/lists/*

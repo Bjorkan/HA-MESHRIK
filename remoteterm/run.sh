@@ -16,7 +16,7 @@ APP_PID=""
 CHILD_STATUS=0
 
 # Invoked by the EXIT trap.
-# shellcheck disable=SC2329
+# shellcheck disable=SC2317,SC2329
 cleanup() {
     [ -z "$AUTH_HEADER_FILE" ] || rm -f -- "$AUTH_HEADER_FILE"
     [ -z "$SUPERVISOR_HEADER_FILE" ] || rm -f -- "$SUPERVISOR_HEADER_FILE"
@@ -151,7 +151,7 @@ wait_for_child() {
 }
 
 # Invoked by TERM/INT traps.
-# shellcheck disable=SC2329
+# shellcheck disable=SC2317,SC2329
 forward_signal() {
     local exit_code=$1
     trap - TERM INT

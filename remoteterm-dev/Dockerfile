@@ -1,4 +1,5 @@
 # The edge workflow overrides this with the immutable digest published for main.
+# hadolint ignore=DL3006
 ARG MESHRIK_IMAGE=ghcr.io/bjorkan/meshrik:edge
 FROM ${MESHRIK_IMAGE}
 
@@ -15,6 +16,7 @@ LABEL io.hass.version="${BUILD_VERSION}" \
       org.opencontainers.image.licenses="MIT"
 
 # Home Assistant wrapper dependencies.
+# hadolint ignore=DL3008
 RUN apt-get update \
     && apt-get install -y --no-install-recommends jq curl \
     && rm -rf /var/lib/apt/lists/*
