@@ -11,7 +11,7 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}/remoteterm-app-dev
+  IMAGE_NAME: bjorkan/ha-meshrik/remoteterm-app-dev
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
@@ -74,8 +74,19 @@ jobs:
           # Thin wrapper around the published MESHRIK edge image.
           platforms: linux/amd64,linux/arm64
           push: true
-          tags: |
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.version }}
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+          pull: true
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.version }}
+          build-args: BUILD_VERSION=${{ steps.version.outputs.version }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      - name: Verify public multi-platform image
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          docker logout "${REGISTRY}"
+          docker buildx imagetools inspect --raw "${REGISTRY}/${IMAGE_NAME}:${VERSION}" \
+            | jq -e '
+                [.manifests[].platform | select(.os == "linux") | .architecture]
+                | contains(["amd64", "arm64"])
+              '

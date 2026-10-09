@@ -7,6 +7,7 @@
 - Point user-facing documentation and support links to Bjorkan/MESHRIK and HA-MESHRIK.
 - Preserve attribution to RemoteTerm for MeshCore and the original Home Assistant package.
 - Wrap the stable `ghcr.io/bjorkan/meshrik:latest` image, with support for digest pinning in CI.
+- Publish the multi-architecture HA wrapper at the lowercase, versioned `ghcr.io/bjorkan/ha-meshrik/remoteterm-app` package with required HA image labels.
 
 
 ## 3.16.2

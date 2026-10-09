@@ -6,7 +6,7 @@ url: "https://github.com/Bjorkan/HA-MESHRIK"
 arch:
   - amd64
   - aarch64
-image: "ghcr.io/bhaggs/ha-remoteterm-app/remoteterm-app"
+image: "ghcr.io/bjorkan/ha-meshrik/remoteterm-app"
 ingress: true
 ingress_port: 8000
 ingress_stream: true

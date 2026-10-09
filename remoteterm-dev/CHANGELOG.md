@@ -8,3 +8,4 @@
 - Preserve attribution to RemoteTerm for MeshCore and the original Home Assistant package.
 - Replace the legacy source clone/frontend rebuild with a thin wrapper around `ghcr.io/bjorkan/meshrik:edge`.
 - Remove the obsolete local `MessageInput.tsx` override.
+- Publish the multi-architecture HA wrapper at the lowercase, versioned `ghcr.io/bjorkan/ha-meshrik/remoteterm-app-dev` package with required HA image labels.

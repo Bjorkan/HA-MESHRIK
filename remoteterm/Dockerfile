@@ -4,7 +4,16 @@ ARG MESHRIK_IMAGE=ghcr.io/bjorkan/meshrik:latest
 FROM ${MESHRIK_IMAGE}
 
 ARG MESHRIK_IMAGE
-LABEL org.opencontainers.image.base.name="${MESHRIK_IMAGE}"
+ARG BUILD_VERSION=dev
+LABEL io.hass.version="${BUILD_VERSION}" \
+      io.hass.type="app" \
+      io.hass.arch="aarch64|amd64" \
+      io.hass.name="MESHRIK" \
+      io.hass.description="MESHRIK web interface for MeshCore radio networks" \
+      io.hass.url="https://github.com/Bjorkan/HA-MESHRIK" \
+      org.opencontainers.image.base.name="${MESHRIK_IMAGE}" \
+      org.opencontainers.image.source="https://github.com/Bjorkan/HA-MESHRIK" \
+      org.opencontainers.image.licenses="MIT"
 
 # Home Assistant wrapper dependencies.
 RUN apt-get update \

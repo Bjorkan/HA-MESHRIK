@@ -25,6 +25,13 @@ The apps use the internal slugs `meshrik` and `meshrik-dev`. These distinct iden
 
 Both entries can be installed side by side. Their slugs, wrapper images, versions, and storage are independent.
 
+Wrapper images are published as lowercase, independent GHCR packages:
+
+- `ghcr.io/bjorkan/ha-meshrik/remoteterm-app:<stable-version>`
+- `ghcr.io/bjorkan/ha-meshrik/remoteterm-app-dev:<edge-version>`
+
+Only immutable app-version tags are used. Home Assistant resolves the tag from each manifest's `version`; wrapper `latest` tags are intentionally not part of the release contract.
+
 ## Radio connection
 
 MESHRIK supports serial/USB, TCP, and BLE. TCP and serial are recommended in Home Assistant; BLE access from a container depends on the host and is best effort. Configure exactly one method. Leaving `serial_port` blank enables automatic serial detection.
