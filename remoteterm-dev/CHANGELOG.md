@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026.10.09.3
+
+- Package MESHRIK edge commit [`d08bb1113f08928e16585f9f0d5d84aeae6df2e4`](https://github.com/Bjorkan/MESHRIK/commit/d08bb1113f08928e16585f9f0d5d84aeae6df2e4).
+- Pin source image digest `sha256:29bc32bdbf48148d246b20c86b799aa4a15119c7414e0d67588f3e6388f5be9c`.
+
+
 ## 2026.08.12.0
 
 - Rename the experimental app to MESHRIK - Bleeding Edge.

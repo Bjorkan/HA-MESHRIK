@@ -1,0 +1,9 @@
+{
+  "source_sha": "d08bb1113f08928e16585f9f0d5d84aeae6df2e4",
+  "source_image": "ghcr.io/bjorkan/meshrik",
+  "source_digest": "sha256:29bc32bdbf48148d246b20c86b799aa4a15119c7414e0d67588f3e6388f5be9c",
+  "source_url": "https://github.com/Bjorkan/MESHRIK/commit/d08bb1113f08928e16585f9f0d5d84aeae6df2e4",
+  "wrapper_version": "2026.10.09.3",
+  "wrapper_image": "ghcr.io/bjorkan/ha-meshrik/remoteterm-app-dev",
+  "wrapper_digest": "sha256:b85018dac7a7bc134e4ac0621aabdab057d64fb1be412b6a8fd58ca8e6f4b559"
+}
