@@ -6,3 +6,5 @@
 - Rename its internal slug to `meshrik-dev`; legacy app data is not migrated automatically.
 - Document that this channel follows successful MESHRIK `main` builds.
 - Preserve attribution to RemoteTerm for MeshCore and the original Home Assistant package.
+- Replace the legacy source clone/frontend rebuild with a thin wrapper around `ghcr.io/bjorkan/meshrik:edge`.
+- Remove the obsolete local `MessageInput.tsx` override.

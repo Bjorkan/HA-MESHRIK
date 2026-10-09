@@ -7,7 +7,6 @@ on:
       - remoteterm-dev/Dockerfile
       - remoteterm-dev/run.sh
       - remoteterm-dev/config.yaml
-      - remoteterm-dev/MessageInput.tsx
   workflow_dispatch:
 
 env:
@@ -72,8 +71,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: remoteterm-dev/
-          # Builds from upstream main — takes longer than normal
-          # (~15-20 min) due to cloning and full frontend build under QEMU.
+          # Thin wrapper around the published MESHRIK edge image.
           platforms: linux/amd64,linux/arm64
           push: true
           tags: |

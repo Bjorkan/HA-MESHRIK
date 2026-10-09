@@ -81,7 +81,7 @@ uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 &
 APP_PID=$!
 
 # ---------------------------------------------------------------------------
-# Wait for RemoteTerm to be ready (up to 60 seconds)
+# Wait for MESHRIK to be ready (up to 60 seconds)
 # ---------------------------------------------------------------------------
 echo "Waiting for MESHRIK to start..."
 for i in $(seq 1 60); do
