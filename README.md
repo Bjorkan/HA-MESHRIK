@@ -32,6 +32,12 @@ Wrapper images are published as lowercase, independent GHCR packages:
 
 Only immutable app-version tags are used. Home Assistant resolves the tag from each manifest's `version`; wrapper `latest` tags are intentionally not part of the release contract.
 
+### Stable release automation
+
+The stable workflow accepts a `meshrik-stable-published` repository dispatch only after MESHRIK has published its release container. MESHRIK's release workflow sends the release version, commit, image digest, and release URL when the `HA_MESHRIK_DISPATCH_TOKEN` Actions secret is configured in the source repository. An hourly reconciliation run handles missed events by resolving GitHub's latest non-prerelease MESHRIK release.
+
+Before building, the HA workflow requires the release tag, commit, `:latest` image, immutable version tag, and optional dispatch payload to agree. It builds from the exact source digest, verifies the wrapper anonymously for AMD64 and ARM64, and only then commits the new manifest version and `source-lock.json`. Duplicate events are no-ops; a failed build leaves the advertised version unchanged and can safely be retried.
+
 ## Radio connection
 
 MESHRIK supports serial/USB, TCP, and BLE. TCP and serial are recommended in Home Assistant; BLE access from a container depends on the host and is best effort. Configure exactly one method. Leaving `serial_port` blank enables automatic serial detection.

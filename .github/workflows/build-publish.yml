@@ -1,13 +1,34 @@
-name: Build and publish app image
+name: Publish stable HA app
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - remoteterm/Dockerfile
-      - remoteterm/run.sh
-      - remoteterm/config.yaml
+  repository_dispatch:
+    types: [meshrik-stable-published]
+  schedule:
+    # Reconcile missed cross-repository events without tracking main or prereleases.
+    - cron: "17 * * * *"
   workflow_dispatch:
+    inputs:
+      source_version:
+        description: Expected stable MESHRIK version (blank resolves releases/latest)
+        required: false
+      source_sha:
+        description: Expected MESHRIK release commit
+        required: false
+      image_digest:
+        description: Expected ghcr.io/bjorkan/meshrik digest
+        required: false
+      source_url:
+        description: Expected MESHRIK release URL
+        required: false
+
+permissions:
+  actions: read
+  contents: write
+  packages: write
+
+concurrency:
+  group: stable-ha-publication
+  cancel-in-progress: false
 
 env:
   REGISTRY: ghcr.io
@@ -15,120 +36,142 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
-  build-and-push:
+  publish:
+    if: github.repository == 'Bjorkan/HA-MESHRIK'
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
+    timeout-minutes: 45
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - name: Check out current HA wrapper
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
 
-      - name: Read app version from config.yaml
-        id: version
-        run: |
-          VERSION=$(grep '^version:' remoteterm/config.yaml | awk '{print $2}' | tr -d '"')
-          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
-          echo "Building version ${VERSION}"
-
-      - name: Set up QEMU (for cross-platform builds)
-        uses: docker/setup-qemu-action@v3
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v4
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
+
+      - name: Resolve and verify latest stable MESHRIK release
+        id: source
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PAYLOAD_SOURCE_VERSION: ${{ github.event.client_payload.source_version || inputs.source_version || '' }}
+          PAYLOAD_SOURCE_SHA: ${{ github.event.client_payload.source_sha || inputs.source_sha || '' }}
+          PAYLOAD_IMAGE_DIGEST: ${{ github.event.client_payload.image_digest || inputs.image_digest || '' }}
+          PAYLOAD_SOURCE_URL: ${{ github.event.client_payload.source_url || inputs.source_url || '' }}
+        run: .github/scripts/resolve-stable-release.sh
 
       - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3
+        if: steps.source.outputs.needs_publish == 'true'
+        uses: docker/login-action@v4
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push multi-platform image
-        uses: docker/build-push-action@v6
+      - name: Build and publish exact stable wrapper
+        if: steps.source.outputs.needs_publish == 'true'
+        id: build
+        uses: docker/build-push-action@v7
         with:
           context: remoteterm/
-          # Matches the two architectures the upstream image publishes.
-          # amd64  → Intel/AMD machines, VMs
-          # arm64  → Raspberry Pi 4/5, Odroid N2+, and RPi 3 running 64-bit HAOS
           platforms: linux/amd64,linux/arm64
           push: true
           pull: true
-          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.version }}
-          build-args: BUILD_VERSION=${{ steps.version.outputs.version }}
-          # Layer cache speeds up subsequent builds
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.source.outputs.wrapper_version }}
+          build-args: |
+            BUILD_VERSION=${{ steps.source.outputs.wrapper_version }}
+            MESHRIK_IMAGE=ghcr.io/bjorkan/meshrik@${{ steps.source.outputs.source_digest }}
+          cache-from: type=gha,scope=stable-wrapper
+          cache-to: type=gha,mode=max,scope=stable-wrapper
 
-      - name: Verify public multi-platform image
+      - name: Verify wrapper anonymously
+        if: steps.source.outputs.needs_publish == 'true'
         env:
-          VERSION: ${{ steps.version.outputs.version }}
+          WRAPPER_DIGEST: ${{ steps.build.outputs.digest }}
         run: |
           docker logout "${REGISTRY}"
-          docker buildx imagetools inspect --raw "${REGISTRY}/${IMAGE_NAME}:${VERSION}" \
+          docker buildx imagetools inspect \
+            "${REGISTRY}/${IMAGE_NAME}@${WRAPPER_DIGEST}" \
+            --format '{{json .Manifest}}' \
             | jq -e '
-                [.manifests[].platform | select(.os == "linux") | .architecture]
-                | contains(["amd64", "arm64"])
+                .digest == env.WRAPPER_DIGEST and
+                ([.manifests[].platform | select(.os == "linux") | .architecture]
+                  | contains(["amd64", "arm64"]))
               '
 
-  release:
-    needs: build-and-push
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Read app version from config.yaml
-        id: version
+      - name: Advertise wrapper only after successful publication
+        if: steps.source.outputs.needs_publish == 'true'
+        id: advertise
+        env:
+          SOURCE_VERSION: ${{ steps.source.outputs.source_version }}
+          SOURCE_SHA: ${{ steps.source.outputs.source_sha }}
+          SOURCE_DIGEST: ${{ steps.source.outputs.source_digest }}
+          SOURCE_URL: ${{ steps.source.outputs.source_url }}
+          WRAPPER_VERSION: ${{ steps.source.outputs.wrapper_version }}
+          WRAPPER_DIGEST: ${{ steps.build.outputs.digest }}
         run: |
-          VERSION=$(grep '^version:' remoteterm/config.yaml | awk '{print $2}' | tr -d '"')
-          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          git fetch origin main
+          test "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)" || {
+            echo "main changed while the wrapper was building; rerun against the new head" >&2
+            exit 1
+          }
 
-      - name: Check if release tag already exists
-        id: tag_check
-        run: |
-          if git ls-remote --tags origin "refs/tags/v${{ steps.version.outputs.version }}" | grep -q .; then
-            echo "exists=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "exists=false" >> "$GITHUB_OUTPUT"
-          fi
+          sed -i "s/^version: .*/version: \"${WRAPPER_VERSION}\"/" remoteterm/config.yaml
 
-      - name: Build release notes
-        if: steps.tag_check.outputs.exists == 'false'
-        run: |
-          VERSION="${{ steps.version.outputs.version }}"
-          PREV_TAG=$(git tag --sort=-v:refname | head -1 2>/dev/null || echo "")
-
-          APP_COMMITS=""
-          if [ -n "$PREV_TAG" ]; then
-            APP_COMMITS=$(git log "${PREV_TAG}..HEAD" --oneline --no-merges \
-              -- remoteterm/ .github/ README.md repository.yaml \
-              | grep -v "chore: bump to upstream" \
-              | sed 's/^[a-f0-9]\+ /- /' \
-              2>/dev/null || echo "")
-          fi
-
+          changelog=$(mktemp)
           {
-            echo "Packages [MESHRIK v${VERSION}](https://github.com/Bjorkan/MESHRIK/releases/tag/${VERSION}) for Home Assistant."
-            echo ""
-            echo "MESHRIK is a fork of [RemoteTerm for MeshCore](https://github.com/jkingsman/Remote-Terminal-for-MeshCore). See the [MESHRIK changelog](https://github.com/Bjorkan/MESHRIK/blob/main/CHANGELOG.md) for application changes."
-            if [ -n "$APP_COMMITS" ]; then
-              echo ""
-              echo "## Home Assistant App changes"
-              echo ""
-              echo "$APP_COMMITS"
-            fi
-          } > /tmp/release_notes.md
+            head -n 1 remoteterm/CHANGELOG.md
+            printf '\n## %s\n\n' "${WRAPPER_VERSION}"
+            # Markdown backticks are literal.
+            # shellcheck disable=SC2016
+            printf -- '- Package [MESHRIK %s](%s) from commit `%s`.\n' \
+              "${SOURCE_VERSION}" "${SOURCE_URL}" "${SOURCE_SHA}"
+            # Markdown backticks are literal.
+            # shellcheck disable=SC2016
+            printf -- '- Pin source image digest `%s`.\n\n' "${SOURCE_DIGEST}"
+            tail -n +2 remoteterm/CHANGELOG.md
+          } > "${changelog}"
+          mv "${changelog}" remoteterm/CHANGELOG.md
 
-      - name: Create GitHub Release
-        if: steps.tag_check.outputs.exists == 'false'
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: "v${{ steps.version.outputs.version }}"
-          name: "v${{ steps.version.outputs.version }}"
-          body_path: /tmp/release_notes.md
-          generate_release_notes: false
+          jq -n \
+            --arg source_version "${SOURCE_VERSION}" \
+            --arg source_sha "${SOURCE_SHA}" \
+            --arg source_image "ghcr.io/bjorkan/meshrik" \
+            --arg source_digest "${SOURCE_DIGEST}" \
+            --arg source_url "${SOURCE_URL}" \
+            --arg wrapper_version "${WRAPPER_VERSION}" \
+            --arg wrapper_image "${REGISTRY}/${IMAGE_NAME}" \
+            --arg wrapper_digest "${WRAPPER_DIGEST}" \
+            '{source_version: $source_version, source_sha: $source_sha,
+              source_image: $source_image, source_digest: $source_digest,
+              source_url: $source_url, wrapper_version: $wrapper_version,
+              wrapper_image: $wrapper_image, wrapper_digest: $wrapper_digest}' \
+            > remoteterm/source-lock.json
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add remoteterm/config.yaml remoteterm/CHANGELOG.md remoteterm/source-lock.json
+          git commit -m "chore: publish stable MESHRIK ${SOURCE_VERSION} as ${WRAPPER_VERSION}"
+          git push origin HEAD:main
+          echo "commit=$(git rev-parse HEAD)" >> "${GITHUB_OUTPUT}"
+
+      - name: Ensure wrapper GitHub release exists
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SOURCE_VERSION: ${{ steps.source.outputs.source_version }}
+          SOURCE_URL: ${{ steps.source.outputs.source_url }}
+          WRAPPER_VERSION: ${{ steps.source.outputs.wrapper_version }}
+          RELEASE_COMMIT: ${{ steps.advertise.outputs.commit || github.sha }}
+        run: |
+          if gh release view "v${WRAPPER_VERSION}" >/dev/null 2>&1; then
+            exit 0
+          fi
+
+          gh release create "v${WRAPPER_VERSION}" \
+            --target "${RELEASE_COMMIT}" \
+            --title "MESHRIK Home Assistant v${WRAPPER_VERSION}" \
+            --notes "Packages [MESHRIK ${SOURCE_VERSION}](${SOURCE_URL}) for Home Assistant. MESHRIK is a fork of [RemoteTerm for MeshCore](https://github.com/jkingsman/Remote-Terminal-for-MeshCore)."
