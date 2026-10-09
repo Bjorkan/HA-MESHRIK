@@ -34,7 +34,9 @@ Configure exactly one connection method:
 
 ## MQTT and persistence
 
-If the Supervisor exposes an MQTT service, the app creates a Home Assistant MQTT fanout on first start. User-edited fanout configuration is preserved on later starts.
+If the Supervisor exposes an MQTT service, the app creates a Home Assistant MQTT fanout on first start, including the broker's TLS setting. Internal setup requests use the configured Basic Auth credentials. User-edited fanout configuration is preserved on later starts.
+
+If the Supervisor later changes the MQTT broker, credentials, port, or TLS setting, an existing `mqtt_ha` fanout is intentionally not overwritten. Update it in the MESHRIK UI, or delete it and restart the app to bootstrap it again from the current Supervisor service data.
 
 The SQLite database is `/data/meshcore.db` and survives normal restart and app update operations. Keep Home Assistant backups of the app data before major upgrades.
 

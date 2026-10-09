@@ -1,18 +1,55 @@
 #!/bin/bash
 set -euo pipefail
 
-OPTIONS="/data/options.json"
+OPTIONS="${MESHRIK_HA_OPTIONS:-/data/options.json}"
+APP_DIR="${MESHRIK_HA_APP_DIR:-/app}"
+API_BASE="${MESHRIK_HA_API_BASE:-http://localhost:8000}"
+SUPERVISOR_MQTT_URL="${MESHRIK_HA_MQTT_URL:-http://supervisor/services/mqtt}"
+CURL_BIN="${MESHRIK_HA_CURL_BIN:-curl}"
+UV_BIN="${MESHRIK_HA_UV_BIN:-uv}"
+READINESS_ATTEMPTS="${MESHRIK_HA_READINESS_ATTEMPTS:-30}"
+READINESS_INTERVAL="${MESHRIK_HA_READINESS_INTERVAL:-1}"
 
-# Helper: read a string option; emit nothing if null or empty
-get_str() { jq -r ".$1 // empty" "$OPTIONS"; }
+AUTH_HEADER_FILE=""
+SUPERVISOR_HEADER_FILE=""
+APP_PID=""
+CHILD_STATUS=0
 
-# Helper: read a value that must always be present (numbers, bools)
-get_val() { jq -r ".$1" "$OPTIONS"; }
+# Invoked by the EXIT trap.
+# shellcheck disable=SC2329
+cleanup() {
+    [ -z "$AUTH_HEADER_FILE" ] || rm -f -- "$AUTH_HEADER_FILE"
+    [ -z "$SUPERVISOR_HEADER_FILE" ] || rm -f -- "$SUPERVISOR_HEADER_FILE"
+}
+trap cleanup EXIT
 
-# ---------------------------------------------------------------------------
-# Connection settings — only export non-empty values so the app's own
-# auto-detection logic (e.g. serial auto-scan) fires when fields are blank.
-# ---------------------------------------------------------------------------
+make_private_header_file() {
+    local header=$1
+    local file
+    file=$(mktemp /tmp/meshrik-header.XXXXXX)
+    chmod 600 "$file"
+    printf '%s\n' "$header" > "$file"
+    printf '%s\n' "$file"
+}
+
+get_str() {
+    jq -er --arg key "$1" '.[$key] // empty | select(type == "string")' "$OPTIONS" \
+        2>/dev/null || true
+}
+
+get_val() {
+    jq -r --arg key "$1" \
+        'if .[$key] != null then .[$key] else error("missing option: \($key)") end' \
+        "$OPTIONS"
+}
+
+jq -e 'type == "object"' "$OPTIONS" >/dev/null || {
+    echo "Invalid Home Assistant options JSON." >&2
+    exit 1
+}
+
+# Export only non-empty connection values so MESHRIK can auto-detect serial
+# devices when no explicit connection is configured.
 SERIAL_PORT=$(get_str serial_port)
 SERIAL_BAUDRATE=$(get_val serial_baudrate)
 TCP_HOST=$(get_str tcp_host)
@@ -20,116 +57,187 @@ TCP_PORT=$(get_val tcp_port)
 BLE_ADDRESS=$(get_str ble_address)
 BLE_PIN=$(get_str ble_pin)
 
-[ -n "$SERIAL_PORT" ]     && export MESHCORE_SERIAL_PORT="$SERIAL_PORT"
-[ -n "$SERIAL_BAUDRATE" ] && export MESHCORE_SERIAL_BAUDRATE="$SERIAL_BAUDRATE"
-[ -n "$TCP_HOST" ]        && export MESHCORE_TCP_HOST="$TCP_HOST"
-[ -n "$TCP_PORT" ]        && export MESHCORE_TCP_PORT="$TCP_PORT"
-[ -n "$BLE_ADDRESS" ]     && export MESHCORE_BLE_ADDRESS="$BLE_ADDRESS"
-[ -n "$BLE_PIN" ]         && export MESHCORE_BLE_PIN="$BLE_PIN"
+[ -z "$SERIAL_PORT" ] || export MESHCORE_SERIAL_PORT="$SERIAL_PORT"
+[ -z "$SERIAL_BAUDRATE" ] || export MESHCORE_SERIAL_BAUDRATE="$SERIAL_BAUDRATE"
+[ -z "$TCP_HOST" ] || export MESHCORE_TCP_HOST="$TCP_HOST"
+[ -z "$TCP_PORT" ] || export MESHCORE_TCP_PORT="$TCP_PORT"
+[ -z "$BLE_ADDRESS" ] || export MESHCORE_BLE_ADDRESS="$BLE_ADDRESS"
+[ -z "$BLE_PIN" ] || export MESHCORE_BLE_PIN="$BLE_PIN"
 
-# ---------------------------------------------------------------------------
-# General settings
-# ---------------------------------------------------------------------------
-export MESHCORE_LOG_LEVEL="$(get_val log_level)"
-export MESHCORE_DISABLE_BOTS="$(get_val disable_bots)"
-export MESHCORE_ENABLE_MESSAGE_POLL_FALLBACK="$(get_val enable_message_poll_fallback)"
-export MESHCORE_FORCE_CHANNEL_SLOT_RECONFIGURE="$(get_val force_channel_slot_reconfigure)"
-export MESHCORE_SKIP_POST_CONNECT_SYNC="$(get_val skip_post_connect_sync)"
-
-# ---------------------------------------------------------------------------
-# Auth (both must be set together or neither)
-# ---------------------------------------------------------------------------
-AUTH_USER=$(get_str basic_auth_username)
-AUTH_PASS=$(get_str basic_auth_password)
-[ -n "$AUTH_USER" ] && export MESHCORE_BASIC_AUTH_USERNAME="$AUTH_USER"
-[ -n "$AUTH_PASS" ] && export MESHCORE_BASIC_AUTH_PASSWORD="$AUTH_PASS"
-
-# ---------------------------------------------------------------------------
-# Persist the database inside the HA /data volume so it survives restarts
-# and app updates.
-# ---------------------------------------------------------------------------
+MESHCORE_LOG_LEVEL=$(get_val log_level)
+MESHCORE_DISABLE_BOTS=$(get_val disable_bots)
+MESHCORE_ENABLE_MESSAGE_POLL_FALLBACK=$(get_val enable_message_poll_fallback)
+MESHCORE_FORCE_CHANNEL_SLOT_RECONFIGURE=$(get_val force_channel_slot_reconfigure)
+MESHCORE_SKIP_POST_CONNECT_SYNC=$(get_val skip_post_connect_sync)
+export MESHCORE_LOG_LEVEL MESHCORE_DISABLE_BOTS
+export MESHCORE_ENABLE_MESSAGE_POLL_FALLBACK MESHCORE_FORCE_CHANNEL_SLOT_RECONFIGURE
+export MESHCORE_SKIP_POST_CONNECT_SYNC
 export MESHCORE_DATABASE_PATH="/data/meshcore.db"
 
-# ---------------------------------------------------------------------------
-# Fetch Mosquitto credentials from the HA Supervisor services API.
-# This works automatically when the app declares `services: mqtt:want` and
-# `hassio_api: true` in config.yaml — no user configuration needed.
-# ---------------------------------------------------------------------------
+AUTH_USER=$(get_str basic_auth_username)
+AUTH_PASS=$(get_str basic_auth_password)
+if { [ -n "$AUTH_USER" ] && [ -z "$AUTH_PASS" ]; } || \
+   { [ -z "$AUTH_USER" ] && [ -n "$AUTH_PASS" ]; }; then
+    echo "Basic Auth username and password must either both be set or both be empty." >&2
+    exit 1
+fi
+
+if [ -n "$AUTH_USER" ]; then
+    export MESHCORE_BASIC_AUTH_USERNAME="$AUTH_USER"
+    export MESHCORE_BASIC_AUTH_PASSWORD="$AUTH_PASS"
+    auth_value=$(printf '%s:%s' "$AUTH_USER" "$AUTH_PASS" | base64 | tr -d '\n')
+    AUTH_HEADER_FILE=$(make_private_header_file "Authorization: Basic ${auth_value}")
+    unset auth_value
+fi
+
+CURL_COMMON=(
+    --silent
+    --show-error
+    --fail
+    --connect-timeout 2
+    --max-time 5
+    --retry 2
+    --retry-delay 1
+    --retry-connrefused
+)
+
+api_request() {
+    local auth_args=()
+    [ -z "$AUTH_HEADER_FILE" ] || auth_args=(--header "@${AUTH_HEADER_FILE}")
+    "$CURL_BIN" "${CURL_COMMON[@]}" "${auth_args[@]}" "$@"
+}
+
 MQTT_HOST=""
 MQTT_PORT="1883"
 MQTT_USER=""
 MQTT_PASS=""
+MQTT_TLS="false"
 
 if [ -n "${SUPERVISOR_TOKEN:-}" ]; then
-    MQTT_RESPONSE=$(curl -sf \
-        -H "Authorization: Bearer ${SUPERVISOR_TOKEN}" \
-        http://supervisor/services/mqtt 2>/dev/null || true)
-
-    if [ -n "$MQTT_RESPONSE" ]; then
-        MQTT_HOST=$(echo "$MQTT_RESPONSE" | jq -r '.data.host // empty')
-        MQTT_PORT=$(echo "$MQTT_RESPONSE" | jq -r '.data.port // 1883')
-        MQTT_USER=$(echo "$MQTT_RESPONSE" | jq -r '.data.username // empty')
-        MQTT_PASS=$(echo "$MQTT_RESPONSE" | jq -r '.data.password // empty')
+    SUPERVISOR_HEADER_FILE=$(make_private_header_file \
+        "Authorization: Bearer ${SUPERVISOR_TOKEN}")
+    if MQTT_RESPONSE=$("$CURL_BIN" "${CURL_COMMON[@]}" \
+        --header "@${SUPERVISOR_HEADER_FILE}" "$SUPERVISOR_MQTT_URL"); then
+        if jq -e '
+            .result == "ok" and
+            (.data | type == "object") and
+            (.data.host | type == "string" and length > 0) and
+            (.data.port | type == "number" and floor == . and . >= 1 and . <= 65535) and
+            (.data.username == null or (.data.username | type == "string")) and
+            (.data.password == null or (.data.password | type == "string")) and
+            ((.data.ssl // .data.tls // false) | type == "boolean")
+        ' <<<"$MQTT_RESPONSE" >/dev/null; then
+            MQTT_HOST=$(jq -r '.data.host' <<<"$MQTT_RESPONSE")
+            MQTT_PORT=$(jq -r '.data.port' <<<"$MQTT_RESPONSE")
+            MQTT_USER=$(jq -r '.data.username // ""' <<<"$MQTT_RESPONSE")
+            MQTT_PASS=$(jq -r '.data.password // ""' <<<"$MQTT_RESPONSE")
+            MQTT_TLS=$(jq -r '.data.ssl // .data.tls // false' <<<"$MQTT_RESPONSE")
+        else
+            echo "Supervisor returned invalid MQTT service data; skipping automatic MQTT setup." >&2
+        fi
+    else
+        echo "MQTT service is unavailable from Supervisor; skipping automatic MQTT setup." >&2
     fi
+else
+    echo "Supervisor token is absent; skipping automatic MQTT setup."
 fi
 
-# ---------------------------------------------------------------------------
-# Start the application in the background so we can bootstrap MQTT config
-# ---------------------------------------------------------------------------
-cd /app
-uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 &
-APP_PID=$!
+wait_for_child() {
+    if wait "$APP_PID"; then
+        CHILD_STATUS=0
+    else
+        CHILD_STATUS=$?
+    fi
+}
 
-# ---------------------------------------------------------------------------
-# Wait for MESHRIK to be ready (up to 60 seconds)
-# ---------------------------------------------------------------------------
+# Invoked by TERM/INT traps.
+# shellcheck disable=SC2329
+forward_signal() {
+    local exit_code=$1
+    trap - TERM INT
+    if [ -n "$APP_PID" ] && kill -0 "$APP_PID" 2>/dev/null; then
+        kill -TERM "$APP_PID" 2>/dev/null || true
+    fi
+    [ -z "$APP_PID" ] || wait "$APP_PID" 2>/dev/null || true
+    exit "$exit_code"
+}
+
+cd "$APP_DIR"
+"$UV_BIN" run uvicorn app.main:app --host 0.0.0.0 --port 8000 &
+APP_PID=$!
+trap 'forward_signal 143' TERM
+trap 'forward_signal 130' INT
+
 echo "Waiting for MESHRIK to start..."
-for i in $(seq 1 60); do
-    if curl -sf http://localhost:8000/api/health > /dev/null 2>&1; then
+READY=false
+for ((attempt = 1; attempt <= READINESS_ATTEMPTS; attempt++)); do
+    if ! kill -0 "$APP_PID" 2>/dev/null; then
+        wait_for_child
+        echo "MESHRIK exited before becoming ready (status ${CHILD_STATUS})." >&2
+        [ "$CHILD_STATUS" -ne 0 ] || CHILD_STATUS=1
+        exit "$CHILD_STATUS"
+    fi
+
+    if api_request --retry 0 --max-time 2 --output /dev/null \
+        "${API_BASE}/api/health" 2>/dev/null; then
+        READY=true
         echo "MESHRIK is ready."
         break
     fi
-    sleep 1
+
+    [ "$attempt" -eq "$READINESS_ATTEMPTS" ] || sleep "$READINESS_INTERVAL"
 done
 
-# ---------------------------------------------------------------------------
-# Bootstrap the mqtt_ha fanout config on first run only.
-# If a config already exists (including any manual changes made in the UI),
-# it is left completely untouched — user settings are always preserved.
-# ---------------------------------------------------------------------------
-if [ -n "$MQTT_HOST" ]; then
-    EXISTS=$(curl -sf http://localhost:8000/api/fanout 2>/dev/null \
-        | jq '[.[] | select(.type == "mqtt_ha")] | length' 2>/dev/null || echo "0")
-
-    if [ "${EXISTS}" -eq 0 ]; then
-        echo "Configuring mqtt_ha fanout against ${MQTT_HOST}:${MQTT_PORT}..."
-        curl -sf -X POST http://localhost:8000/api/fanout \
-            -H "Content-Type: application/json" \
-            -d "{
-                \"type\": \"mqtt_ha\",
-                \"name\": \"Home Assistant\",
-                \"config\": {
-                    \"broker_host\": \"${MQTT_HOST}\",
-                    \"broker_port\": ${MQTT_PORT},
-                    \"username\": \"${MQTT_USER}\",
-                    \"password\": \"${MQTT_PASS}\"
-                },
-                \"scope\": {\"messages\": \"all\", \"raw_packets\": \"none\"},
-                \"enabled\": true
-            }" > /dev/null
-        echo "mqtt_ha fanout configured — MESHRIK will now publish entities to Home Assistant."
-    else
-        echo "mqtt_ha fanout already configured, skipping bootstrap."
-    fi
-else
-    echo "Mosquitto not found via Supervisor API — configure MQTT manually in the MESHRIK UI if needed."
+if [ "$READY" != true ]; then
+    echo "MESHRIK did not become ready after ${READINESS_ATTEMPTS} attempts." >&2
+    kill -TERM "$APP_PID" 2>/dev/null || true
+    wait "$APP_PID" 2>/dev/null || true
+    exit 1
 fi
 
-# ---------------------------------------------------------------------------
-# Hand off to the app process.
-# Forward SIGTERM/SIGINT to uvicorn so it can close the serial port cleanly
-# before Docker kills the container. Without this, bash (PID 1) swallows the
-# signal and Docker falls back to SIGKILL, leaving the serial device held.
-# ---------------------------------------------------------------------------
-trap 'kill -TERM $APP_PID; wait $APP_PID' TERM INT
-wait $APP_PID
+if [ -n "$MQTT_HOST" ]; then
+    if FANOUT_RESPONSE=$(api_request "${API_BASE}/api/fanout" 2>/dev/null); then
+        if MQTT_COUNT=$(jq -er '
+            if type == "array" then
+                [.[] | select(.type == "mqtt_ha")] | length
+            else
+                error("fanout response is not an array")
+            end
+        ' <<<"$FANOUT_RESPONSE" 2>/dev/null); then
+            if [ "$MQTT_COUNT" -eq 0 ]; then
+                MQTT_PAYLOAD=$(jq -n \
+                    --arg broker_host "$MQTT_HOST" \
+                    --argjson broker_port "$MQTT_PORT" \
+                    --arg username "$MQTT_USER" \
+                    --arg password "$MQTT_PASS" \
+                    --argjson use_tls "$MQTT_TLS" \
+                    '{type: "mqtt_ha", name: "Home Assistant",
+                      config: {broker_host: $broker_host, broker_port: $broker_port,
+                        username: $username, password: $password, use_tls: $use_tls},
+                      scope: {messages: "all", raw_packets: "none"}, enabled: true}')
+
+                echo "Configuring mqtt_ha fanout against ${MQTT_HOST}:${MQTT_PORT} (TLS: ${MQTT_TLS})..."
+                if printf '%s' "$MQTT_PAYLOAD" | api_request \
+                    --request POST \
+                    --header "Content-Type: application/json" \
+                    --data-binary @- \
+                    "${API_BASE}/api/fanout" >/dev/null 2>&1; then
+                    echo "mqtt_ha fanout configured; MESHRIK will publish entities to Home Assistant."
+                else
+                    echo "Could not create mqtt_ha fanout; configure it in the MESHRIK UI." >&2
+                fi
+            else
+                echo "mqtt_ha fanout already exists; preserving its current settings."
+            fi
+        else
+            echo "MESHRIK returned invalid fanout JSON; automatic MQTT setup was skipped." >&2
+        fi
+    else
+        echo "Could not read MESHRIK fanout settings; automatic MQTT setup was skipped." >&2
+    fi
+else
+    echo "Mosquitto was not found via Supervisor; configure MQTT in the MESHRIK UI if needed."
+fi
+
+wait_for_child
+exit "$CHILD_STATUS"
