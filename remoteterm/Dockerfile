@@ -1,7 +1,7 @@
 # The release workflow overrides this with the immutable digest behind :latest.
 # The default keeps local builds convenient while stable CI remains reproducible.
-# hadolint ignore=DL3006
 ARG MESHRIK_IMAGE=ghcr.io/bjorkan/meshrik:latest
+# hadolint ignore=DL3006
 FROM ${MESHRIK_IMAGE}
 
 ARG MESHRIK_IMAGE

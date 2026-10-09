@@ -1,6 +1,6 @@
 # The edge workflow overrides this with the immutable digest published for main.
-# hadolint ignore=DL3006
 ARG MESHRIK_IMAGE=ghcr.io/bjorkan/meshrik:edge
+# hadolint ignore=DL3006
 FROM ${MESHRIK_IMAGE}
 
 ARG MESHRIK_IMAGE
