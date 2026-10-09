@@ -1,60 +1,45 @@
-# RemoteTerm for MeshCore
+# MESHRIK
 
-A Home Assistant app that runs [RemoteTerm for MeshCore](https://github.com/jkingsman/Remote-Terminal-for-MeshCore) — a web-based terminal and management interface for MeshCore mesh radio networks.
+This Home Assistant app runs the stable channel of [MESHRIK](https://github.com/Bjorkan/MESHRIK), a fork of [RemoteTerm for MeshCore](https://github.com/jkingsman/Remote-Terminal-for-MeshCore). It follows published stable MESHRIK releases through `ghcr.io/bjorkan/meshrik:latest`.
 
-Once started, RemoteTerm appears in the Home Assistant sidebar for one-click access. All traffic is routed through HA's ingress proxy — no port is exposed externally.
+MESHRIK appears in the Home Assistant sidebar and is served through ingress. No host port is exposed unless you explicitly map `8000/tcp` on the Network tab.
 
-> **Security notice:** RemoteTerm is designed for trusted networks only. The bot system executes arbitrary Python code. If this app is exposed beyond your local network, enable Basic Auth and consider `disable_bots: true`.
-
----
+> **Security:** MESHRIK is intended for trusted networks. Bots execute user-provided Python. If you expose the port directly, use HTTPS at a trusted reverse proxy, enable Basic Auth, and consider `disable_bots: true`.
 
 ## Radio connection
 
-Exactly **one** connection method must be configured at a time.
+Configure exactly one connection method:
 
-### Serial (USB)
-
-Connect your radio via USB. Set `serial_port` to the device path, e.g. `/dev/ttyUSB0`.  
-Leave `serial_port` empty to let RemoteTerm auto-detect the device.
-
-Any USB serial device on the host (e.g. `/dev/ttyUSB0`, `/dev/ttyACM5`) is automatically accessible to the app — set `serial_port` to whatever path your radio actually enumerates as.
-
-### TCP (network)
-
-Set `tcp_host` to the IP address of the remote radio host and `tcp_port` to its port (default `5000`). Leave `serial_port`, `ble_address`, and `ble_pin` empty.
-
-### Bluetooth LE
-
-Set `ble_address` (e.g. `AA:BB:CC:DD:EE:FF`) and `ble_pin`. This app requests host Bluetooth access, but BLE in Docker is inherently fragile and may require additional host-side configuration to work. TCP or serial are recommended over BLE where possible.
-
----
+- **Serial/USB:** set `serial_port`, such as `/dev/ttyUSB0`, or leave it empty for auto-detection.
+- **TCP:** set `tcp_host` and `tcp_port` (default `5000`).
+- **BLE:** set `ble_address` and `ble_pin`. Containerized BLE is best effort; serial or TCP is recommended.
 
 ## Options
 
 | Option | Default | Description |
-|--------|---------|-------------|
-| `serial_port` | _(auto)_ | Serial device path. Empty = auto-detect. |
+| --- | --- | --- |
+| `serial_port` | auto | Serial device path; empty enables auto-detection. |
 | `serial_baudrate` | `115200` | Serial baud rate. |
-| `tcp_host` | _(none)_ | TCP host for remote radio. |
-| `tcp_port` | `5000` | TCP port for remote radio. |
-| `ble_address` | _(none)_ | BLE device MAC address. |
-| `ble_pin` | _(none)_ | BLE PIN (required when `ble_address` is set). |
-| `log_level` | `INFO` | Log verbosity: `DEBUG`, `INFO`, `WARNING`, `ERROR`. |
-| `disable_bots` | `false` | Disable the Python bot/agent system. |
-| `basic_auth_username` | _(none)_ | Username for HTTP Basic Auth. |
-| `basic_auth_password` | _(none)_ | Password for HTTP Basic Auth. Both must be set together. |
+| `tcp_host` | none | Network radio host. |
+| `tcp_port` | `5000` | Network radio port. |
+| `ble_address` | none | BLE device address. |
+| `ble_pin` | none | BLE PIN, required with `ble_address`. |
+| `log_level` | `INFO` | `DEBUG`, `INFO`, `WARNING`, or `ERROR`. |
+| `disable_bots` | `false` | Disable the Python bot system. |
+| `basic_auth_username` | none | HTTP Basic Auth username. |
+| `basic_auth_password` | none | HTTP Basic Auth password; set both credentials together. |
 | `enable_message_poll_fallback` | `false` | Enable fallback message polling. |
-| `force_channel_slot_reconfigure` | `false` | Force channel slot reconfiguration on connect. |
-| `skip_post_connect_sync` | `false` | Skip post-connection radio sync. |
+| `force_channel_slot_reconfigure` | `false` | Force channel-slot reconfiguration on connect. |
+| `skip_post_connect_sync` | `false` | Skip the post-connect radio sync. |
 
----
+## MQTT and persistence
 
-## Data persistence
+If the Supervisor exposes an MQTT service, the app creates a Home Assistant MQTT fanout on first start. User-edited fanout configuration is preserved on later starts.
 
-The SQLite database is stored at `/data/meshcore.db` inside the app's persistent data volume. It survives restarts and app updates.
+The SQLite database is `/data/meshcore.db` and survives normal restart and app update operations. Keep Home Assistant backups of the app data before major upgrades.
 
----
+This app uses the `meshrik` slug. A legacy installation using the `remoteterm` slug is a separate Home Assistant app and its `/data` directory is not migrated automatically.
 
-## Updating
+## Updating and support
 
-This app tracks upstream RemoteTerm releases. When a new version is published, update from the **Settings → Apps** page. The `config.yaml` version number corresponds to the upstream RemoteTerm release.
+The wrapper receives a new app version only after the corresponding stable MESHRIK image has been published. Wrapper issues belong in [HA-MESHRIK](https://github.com/Bjorkan/HA-MESHRIK/issues); application issues belong in [MESHRIK](https://github.com/Bjorkan/MESHRIK/issues).

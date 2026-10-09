@@ -83,10 +83,10 @@ APP_PID=$!
 # ---------------------------------------------------------------------------
 # Wait for RemoteTerm to be ready (up to 60 seconds)
 # ---------------------------------------------------------------------------
-echo "Waiting for RemoteTerm to start..."
+echo "Waiting for MESHRIK to start..."
 for i in $(seq 1 60); do
     if curl -sf http://localhost:8000/api/health > /dev/null 2>&1; then
-        echo "RemoteTerm is ready."
+        echo "MESHRIK is ready."
         break
     fi
     sleep 1
@@ -117,12 +117,12 @@ if [ -n "$MQTT_HOST" ]; then
                 \"scope\": {\"messages\": \"all\", \"raw_packets\": \"none\"},
                 \"enabled\": true
             }" > /dev/null
-        echo "mqtt_ha fanout configured — RemoteTerm will now publish entities to Home Assistant."
+        echo "mqtt_ha fanout configured — MESHRIK will now publish entities to Home Assistant."
     else
         echo "mqtt_ha fanout already configured, skipping bootstrap."
     fi
 else
-    echo "Mosquitto not found via Supervisor API — configure MQTT manually in the RemoteTerm UI if needed."
+    echo "Mosquitto not found via Supervisor API — configure MQTT manually in the MESHRIK UI if needed."
 fi
 
 # ---------------------------------------------------------------------------

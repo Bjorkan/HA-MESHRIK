@@ -1,75 +1,52 @@
-# ha-remoteterm-app
+# MESHRIK Home Assistant apps
 
-A Home Assistant app repository for [RemoteTerm for MeshCore](https://github.com/jkingsman/Remote-Terminal-for-MeshCore) — a web-based terminal and management interface for MeshCore mesh radio networks.
+This repository packages [MESHRIK](https://github.com/Bjorkan/MESHRIK) for Home Assistant. MESHRIK is a fork of [RemoteTerm for MeshCore](https://github.com/jkingsman/Remote-Terminal-for-MeshCore); the original project and the original Home Assistant packaging remain credited in the repository history and license.
 
 ## Installation
 
 1. In Home Assistant, go to **Settings → Apps → App Store**.
-2. Click the menu (⋮) in the top right and choose **Repositories**.
-3. Add this repository URL:
+2. Open the menu (⋮), choose **Repositories**, and add:
+
+   ```text
+   https://github.com/Bjorkan/HA-MESHRIK
    ```
-   https://github.com/bhaggs/ha-remoteterm-app
-   ```
-4. Find **RemoteTerm for MeshCore** in the store and click **Install**.
-5. Configure your radio connection in the app options, then click **Start**.
+
+3. Install either **MESHRIK** or **MESHRIK - Bleeding Edge**.
+4. Configure one radio connection and start the app.
+
+The apps use the internal slugs `meshrik` and `meshrik-dev`. These distinct identities give each channel its own persistent `/data` volume. Existing installations that used the legacy `remoteterm` slugs are treated as different apps and require an explicit data migration.
+
+## Release channels
+
+| App | Source channel | Intended use |
+| --- | --- | --- |
+| [MESHRIK](remoteterm/) | `ghcr.io/bjorkan/meshrik:latest`, updated only for published stable MESHRIK releases | Normal use |
+| [MESHRIK - Bleeding Edge](remoteterm-dev/) | `ghcr.io/bjorkan/meshrik:edge`, updated after successful builds from `main` | Testing; may be unstable or broken |
+
+Both entries can be installed side by side. Their slugs, wrapper images, versions, and storage are independent.
 
 ## Radio connection
 
-RemoteTerm supports three ways to connect to a radio device. **TCP and serial are the recommended options** when running inside Home Assistant.
-
-| Method | Recommended | Notes |
-|--------|-------------|-------|
-| Serial (USB) | ✅ Yes | Plug your radio into the HA host via USB and set `serial_port` (e.g. `/dev/ttyUSB0`), or leave it blank for auto-detection. |
-| TCP | ✅ Yes | Set `tcp_host` and `tcp_port` to connect to a radio accessible over the network. No hardware passthrough needed. |
-| BLE | ⚠️ Best-effort | BLE in Docker is inherently fragile. The app requests host Bluetooth access, but depending on your hardware and host configuration it may not work reliably. TCP or serial are strongly preferred. |
+MESHRIK supports serial/USB, TCP, and BLE. TCP and serial are recommended in Home Assistant; BLE access from a container depends on the host and is best effort. Configure exactly one method. Leaving `serial_port` blank enables automatic serial detection.
 
 ## Home Assistant MQTT integration
 
-If you have the [Mosquitto broker app](https://github.com/home-assistant/addons/tree/master/mosquitto) installed, RemoteTerm will automatically connect to it on first start and create mesh network devices and sensors in Home Assistant — no manual MQTT configuration needed. The app detects Mosquitto via the HA Supervisor and wires itself up automatically.
+When the Mosquitto broker app is available, the wrapper asks the Supervisor for its connection details and creates an `mqtt_ha` fanout on first start. Existing fanout settings are never overwritten. MESHRIK continues to work when Mosquitto is absent.
 
-For full details on the entities created and how to configure them, see the [upstream MQTT integration documentation](https://github.com/jkingsman/Remote-Terminal-for-MeshCore/blob/main/README_HA.md).
+See [MESHRIK's Home Assistant documentation](https://github.com/Bjorkan/MESHRIK/blob/main/README_HA.md) for the entities it publishes.
 
-If Mosquitto is not installed, RemoteTerm works as normal — MQTT is entirely optional.
+## Persistence and shared storage
 
-## Bot file output and shared storage
+Each app stores SQLite data at `/data/meshcore.db`, which Home Assistant preserves across restarts and updates. Because the app slugs differ, stable and Bleeding Edge do not share a database.
 
-RemoteTerm bots can write files to `/share` inside the container, which maps to the Home Assistant shared volume (`/share` on the host). This volume is accessible to all HA add-ons, making it a convenient place to write log files or data that other add-ons or automations can read.
+Bots can write files under `/share`, the Home Assistant shared volume. For example, `/share/meshrik/my-bot.log` is available to other apps and automations with access to that volume.
 
-For example, a bot script can write to `/share/remoteterm/my-bot.log` and the file will be visible in the HA file system.
+## External access
 
-## External access via reverse proxy
+Ingress provides authenticated sidebar access on port 8000 without exposing a host port. To use a reverse proxy, assign a host port to `8000/tcp` on the app's **Network** tab. Direct port exposure bypasses Home Assistant authentication, so enable MESHRIK Basic Auth and use HTTPS at the proxy.
 
-By default, RemoteTerm is only accessible through the Home Assistant sidebar via ingress. If you want to expose it on your network or through your own reverse proxy (e.g. Nginx, Traefik, Cloudflare Tunnel), you can map port 8000 in the add-on's **Network** settings.
+## Support and attribution
 
-In the add-on UI, go to the **Network** tab and set the host port for **8000/tcp** to any available port on your HA host (e.g. `8000`). RemoteTerm will then be reachable at `http://<ha-host>:<port>` in addition to the sidebar. Leave the field blank to keep it inaccessible from outside HA.
+Report wrapper installation, Supervisor, ingress, or update issues in [HA-MESHRIK](https://github.com/Bjorkan/HA-MESHRIK/issues). Report application, UI, radio, or messaging issues in [MESHRIK](https://github.com/Bjorkan/MESHRIK/issues).
 
-Sidebar access via ingress continues to work regardless of whether a host port is set.
-
-> **Note:** Exposing the port bypasses HA authentication. If you use this option, enable RemoteTerm's built-in basic auth (via the `basic_auth_username` and `basic_auth_password` options) or protect the endpoint with your reverse proxy.
-
-## Architecture
-
-This app wraps the upstream `docker.io/jkingsman/remoteterm-meshcore` Docker image with a thin Home Assistant integration layer:
-
-- The [Dockerfile](remoteterm/Dockerfile) uses the upstream image as its base — updating the upstream image automatically provides new features and fixes.
-- The [run.sh](remoteterm/run.sh) translates Home Assistant app options into `MESHCORE_*` environment variables consumed by the app.
-- The SQLite database is stored in the app's persistent `/data` volume so it survives restarts and updates.
-
-## Issues and feature requests
-
-This repository only maintains the Home Assistant app packaging. For bugs or feature requests related to RemoteTerm itself — the UI, radio connectivity, messaging, bots, etc. — please open an issue in the [upstream repository](https://github.com/jkingsman/Remote-Terminal-for-MeshCore/issues). Issues specific to the HA app wrapper (installation, sidebar access, options not applying, etc.) can be filed here.
-
-## Keeping up with upstream
-
-A [GitHub Actions workflow](.github/workflows/update-upstream.yml) checks for new RemoteTerm upstream releases daily and opens a pull request when one is found. Merging the PR bumps the app version — no manual tracking required.
-
-## Apps in this repository
-
-| App | Description |
-|-----|-------------|
-| [RemoteTerm for MeshCore](remoteterm/) | Web terminal for MeshCore mesh radio networks |
-| [RemoteTerm for MeshCore (Dev)](remoteterm-dev/) | Experimental build tracking upstream `main` — for testing only |
-
----
-
-> **Note:** This app was built with the assistance of [Claude Code](https://claude.ai/code). While the generated code has been reviewed, AI-assisted output can contain errors or omissions. Review all configuration, scripts, and workflows before deploying in your environment, and exercise the usual caution when running third-party apps with access to your Home Assistant instance or serial devices.
+MESHRIK is derived from RemoteTerm for MeshCore. See the linked original project and [this repository's license](LICENSE) for attribution and licensing details. The initial Home Assistant package was created by bhaggs; the preserved Git history records that work.

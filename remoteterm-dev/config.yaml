@@ -1,8 +1,8 @@
-name: "RemoteTerm for MeshCore (Dev)"
+name: "MESHRIK - Bleeding Edge"
 version: "2026.08.12.0"
-slug: "remoteterm-dev"
-description: "Development build tracking upstream main. Intended for testing only — not for regular use. May be unstable or broken at any time."
-url: "https://github.com/bhaggs/ha-remoteterm-app"
+slug: "meshrik-dev"
+description: "Experimental MESHRIK build tracking every successful main push; may be unstable or broken"
+url: "https://github.com/Bjorkan/HA-MESHRIK"
 stage: experimental
 arch:
   - amd64
@@ -16,7 +16,7 @@ ports:
 ports_description:
   8000/tcp: Web interface port (for external access via reverse proxy)
 panel_icon: "mdi:human-greeting-proximity"
-panel_title: "RemoteTerm Dev"
+panel_title: "MESHRIK - Bleeding Edge"
 hassio_api: true
 services:
   - mqtt:want

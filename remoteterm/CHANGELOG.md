@@ -2,8 +2,10 @@
 
 ## 3.17.1
 
-- Track upstream RemoteTerm for MeshCore 3.17.1
-- See upstream [CHANGELOG](https://github.com/jkingsman/Remote-Terminal-for-MeshCore/blob/main/CHANGELOG.md) for details
+- Rename the Home Assistant app and internal slug to MESHRIK and `meshrik`.
+- Note that legacy `remoteterm` app data requires explicit migration.
+- Point user-facing documentation and support links to Bjorkan/MESHRIK and HA-MESHRIK.
+- Preserve attribution to RemoteTerm for MeshCore and the original Home Assistant package.
 
 
 ## 3.16.2

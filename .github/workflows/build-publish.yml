@@ -102,9 +102,9 @@ jobs:
           fi
 
           {
-            echo "Tracks upstream [RemoteTerm for MeshCore v${VERSION}](https://github.com/jkingsman/Remote-Terminal-for-MeshCore/releases/tag/${VERSION})."
+            echo "Packages [MESHRIK v${VERSION}](https://github.com/Bjorkan/MESHRIK/releases/tag/${VERSION}) for Home Assistant."
             echo ""
-            echo "See the [upstream changelog](https://github.com/jkingsman/Remote-Terminal-for-MeshCore/blob/main/CHANGELOG.md) for details on what changed in this release."
+            echo "MESHRIK is a fork of [RemoteTerm for MeshCore](https://github.com/jkingsman/Remote-Terminal-for-MeshCore). See the [MESHRIK changelog](https://github.com/Bjorkan/MESHRIK/blob/main/CHANGELOG.md) for application changes."
             if [ -n "$APP_COMMITS" ]; then
               echo ""
               echo "## Home Assistant App changes"
