@@ -1,9 +1,12 @@
-# Upstream RemoteTerm image tag to track.
-# Update REMOTETERM_VERSION here (and in config.yaml) when the upstream releases a new version.
-ARG REMOTETERM_VERSION=latest
-FROM docker.io/jkingsman/remoteterm-meshcore:${REMOTETERM_VERSION}
+# The release workflow overrides this with the immutable digest behind :latest.
+# The default keeps local builds convenient while stable CI remains reproducible.
+ARG MESHRIK_IMAGE=ghcr.io/bjorkan/meshrik:latest
+FROM ${MESHRIK_IMAGE}
 
-# Install jq for parsing Home Assistant add-on options.json
+ARG MESHRIK_IMAGE
+LABEL org.opencontainers.image.base.name="${MESHRIK_IMAGE}"
+
+# Home Assistant wrapper dependencies.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends jq curl \
     && rm -rf /var/lib/apt/lists/*
