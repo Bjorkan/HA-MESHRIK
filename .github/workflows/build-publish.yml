@@ -5,7 +5,7 @@ on:
     types: [meshrik-stable-published]
   schedule:
     # Reconcile missed cross-repository events without tracking main or prereleases.
-    - cron: "17 * * * *"
+    - cron: "17 6 * * *"
   workflow_dispatch:
     inputs:
       source_version:

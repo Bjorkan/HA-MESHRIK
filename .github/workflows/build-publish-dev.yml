@@ -1,13 +1,29 @@
-name: Build and publish dev image
+name: Publish Bleeding Edge HA app
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - remoteterm-dev/Dockerfile
-      - remoteterm-dev/run.sh
-      - remoteterm-dev/config.yaml
+  repository_dispatch:
+    types: [meshrik-edge-published]
+  schedule:
+    - cron: "37 6 * * *"
   workflow_dispatch:
+    inputs:
+      source_sha:
+        description: Expected MESHRIK edge commit (blank resolves OCI metadata)
+        required: false
+      image_digest:
+        description: Expected ghcr.io/bjorkan/meshrik:edge digest
+        required: false
+      source_url:
+        description: Expected MESHRIK commit URL
+        required: false
+
+permissions:
+  contents: write
+  packages: write
+
+concurrency:
+  group: bleeding-edge-ha-publication
+  cancel-in-progress: true
 
 env:
   REGISTRY: ghcr.io
@@ -15,78 +31,121 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
-  build-and-push:
+  publish:
+    if: github.repository == 'Bjorkan/HA-MESHRIK'
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      packages: write
+    timeout-minutes: 45
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - name: Check out current HA wrapper
+        uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
 
-      - name: Generate date-based version
-        id: version
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          BASE=$(date -u +"%Y.%m.%d")
-          EXISTING=$(gh api /users/bhaggs/packages/container/ha-remoteterm-app%2Fremoteterm-app-dev/versions \
-            --jq '[.[].metadata.container.tags[]] | join(" ")' 2>/dev/null || echo "")
-          COUNTER=0
-          VERSION="${BASE}.${COUNTER}"
-          while echo "$EXISTING" | grep -qw "$VERSION"; do
-            COUNTER=$((COUNTER + 1))
-            VERSION="${BASE}.${COUNTER}"
-          done
-          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
-          echo "Building dev version ${VERSION}"
-
-      - name: Stamp version into config.yaml
-        run: |
-          sed -i "s/^version: .*/version: \"${{ steps.version.outputs.version }}\"/" remoteterm-dev/config.yaml
-
-      - name: Commit updated config.yaml if version changed
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add remoteterm-dev/config.yaml
-          git diff --cached --quiet || git commit -m "chore: stamp dev version ${{ steps.version.outputs.version }}"
-          git push || true
-
-      - name: Set up QEMU (for cross-platform builds)
-        uses: docker/setup-qemu-action@v3
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v4
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
+
+      - name: Resolve and verify current MESHRIK edge publication
+        id: source
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PAYLOAD_SOURCE_SHA: ${{ github.event.client_payload.source_sha || inputs.source_sha || '' }}
+          PAYLOAD_IMAGE_DIGEST: ${{ github.event.client_payload.image_digest || inputs.image_digest || '' }}
+          PAYLOAD_SOURCE_URL: ${{ github.event.client_payload.source_url || inputs.source_url || '' }}
+        run: .github/scripts/resolve-edge-publication.sh
 
       - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3
+        if: steps.source.outputs.needs_publish == 'true'
+        uses: docker/login-action@v4
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push dev image
-        uses: docker/build-push-action@v6
+      - name: Build and publish exact edge wrapper
+        if: steps.source.outputs.needs_publish == 'true'
+        id: build
+        uses: docker/build-push-action@v7
         with:
           context: remoteterm-dev/
-          # Thin wrapper around the published MESHRIK edge image.
           platforms: linux/amd64,linux/arm64
           push: true
           pull: true
-          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.version }}
-          build-args: BUILD_VERSION=${{ steps.version.outputs.version }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.source.outputs.wrapper_version }}
+          build-args: |
+            BUILD_VERSION=${{ steps.source.outputs.wrapper_version }}
+            MESHRIK_IMAGE=ghcr.io/bjorkan/meshrik@${{ steps.source.outputs.source_digest }}
+          cache-from: type=gha,scope=edge-wrapper
+          cache-to: type=gha,mode=max,scope=edge-wrapper
 
-      - name: Verify public multi-platform image
+      - name: Verify wrapper anonymously
+        if: steps.source.outputs.needs_publish == 'true'
         env:
-          VERSION: ${{ steps.version.outputs.version }}
+          WRAPPER_DIGEST: ${{ steps.build.outputs.digest }}
         run: |
           docker logout "${REGISTRY}"
-          docker buildx imagetools inspect --raw "${REGISTRY}/${IMAGE_NAME}:${VERSION}" \
+          docker buildx imagetools inspect \
+            "${REGISTRY}/${IMAGE_NAME}@${WRAPPER_DIGEST}" \
+            --format '{{json .Manifest}}' \
             | jq -e '
-                [.manifests[].platform | select(.os == "linux") | .architecture]
-                | contains(["amd64", "arm64"])
+                .digest == env.WRAPPER_DIGEST and
+                ([.manifests[].platform | select(.os == "linux") | .architecture]
+                  | contains(["amd64", "arm64"]))
               '
+
+      - name: Advertise wrapper only after successful publication
+        if: steps.source.outputs.needs_publish == 'true'
+        env:
+          SOURCE_SHA: ${{ steps.source.outputs.source_sha }}
+          SOURCE_DIGEST: ${{ steps.source.outputs.source_digest }}
+          SOURCE_URL: ${{ steps.source.outputs.source_url }}
+          WRAPPER_VERSION: ${{ steps.source.outputs.wrapper_version }}
+          WRAPPER_DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          git fetch origin main
+          test "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)" || {
+            echo "main changed while the wrapper was building; rerun against the new head" >&2
+            exit 1
+          }
+
+          sed -i "s/^version: .*/version: \"${WRAPPER_VERSION}\"/" remoteterm-dev/config.yaml
+
+          changelog=$(mktemp)
+          {
+            head -n 1 remoteterm-dev/CHANGELOG.md
+            printf '\n## %s\n\n' "${WRAPPER_VERSION}"
+            # Markdown backticks are literal.
+            # shellcheck disable=SC2016
+            printf -- '- Package MESHRIK edge commit [`%s`](%s).\n' \
+              "${SOURCE_SHA}" "${SOURCE_URL}"
+            # Markdown backticks are literal.
+            # shellcheck disable=SC2016
+            printf -- '- Pin source image digest `%s`.\n\n' "${SOURCE_DIGEST}"
+            tail -n +2 remoteterm-dev/CHANGELOG.md
+          } > "${changelog}"
+          mv "${changelog}" remoteterm-dev/CHANGELOG.md
+
+          jq -n \
+            --arg source_sha "${SOURCE_SHA}" \
+            --arg source_image "ghcr.io/bjorkan/meshrik" \
+            --arg source_digest "${SOURCE_DIGEST}" \
+            --arg source_url "${SOURCE_URL}" \
+            --arg wrapper_version "${WRAPPER_VERSION}" \
+            --arg wrapper_image "${REGISTRY}/${IMAGE_NAME}" \
+            --arg wrapper_digest "${WRAPPER_DIGEST}" \
+            '{source_sha: $source_sha, source_image: $source_image,
+              source_digest: $source_digest, source_url: $source_url,
+              wrapper_version: $wrapper_version, wrapper_image: $wrapper_image,
+              wrapper_digest: $wrapper_digest}' \
+            > remoteterm-dev/source-lock.json
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add remoteterm-dev/config.yaml remoteterm-dev/CHANGELOG.md \
+            remoteterm-dev/source-lock.json
+          git commit -m "chore: publish MESHRIK edge ${SOURCE_SHA:0:12} as ${WRAPPER_VERSION}"
+          git push origin HEAD:main

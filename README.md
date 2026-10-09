@@ -34,9 +34,15 @@ Only immutable app-version tags are used. Home Assistant resolves the tag from e
 
 ### Stable release automation
 
-The stable workflow accepts a `meshrik-stable-published` repository dispatch only after MESHRIK has published its release container. MESHRIK's release workflow sends the release version, commit, image digest, and release URL when the `HA_MESHRIK_DISPATCH_TOKEN` Actions secret is configured in the source repository. An hourly reconciliation run handles missed events by resolving GitHub's latest non-prerelease MESHRIK release.
+The stable workflow accepts a `meshrik-stable-published` repository dispatch only after MESHRIK has published its release container. MESHRIK's release workflow sends the release version, commit, image digest, and release URL when the `HA_MESHRIK_DISPATCH_TOKEN` Actions secret is configured in the source repository. A daily reconciliation run handles missed events by resolving GitHub's latest non-prerelease MESHRIK release.
 
 Before building, the HA workflow requires the release tag, commit, `:latest` image, immutable version tag, and optional dispatch payload to agree. It builds from the exact source digest, verifies the wrapper anonymously for AMD64 and ARM64, and only then commits the new manifest version and `source-lock.json`. Duplicate events are no-ops; a failed build leaves the advertised version unchanged and can safely be retried.
+
+### Bleeding Edge automation
+
+Each successful MESHRIK `:edge` publication can send a `meshrik-edge-published` dispatch carrying its commit and image digest. A daily reconciliation schedule discovers a missed publication directly from the public image's OCI revision metadata. The workflow rejects stale or reordered commits, pins the exact digest, cancels superseded work, and advertises a new date/run-number version only after its wrapper is anonymously pullable for both supported architectures.
+
+For immediate stable and edge dispatches, create a fine-grained token scoped only to `Bjorkan/HA-MESHRIK` with **Contents: write**, then store it as the `HA_MESHRIK_DISPATCH_TOKEN` Actions secret in `Bjorkan/MESHRIK`. GitHub documents that permission for the [repository dispatch endpoint](https://docs.github.com/en/rest/repos/repos#create-a-repository-dispatch-event). The scheduled reconciliation paths remain the recovery mechanism for missing or failed dispatches.
 
 ## Radio connection
 
