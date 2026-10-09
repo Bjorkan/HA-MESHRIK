@@ -1,0 +1,299 @@
+name: Validate HA manifests and wrappers
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'remoteterm/**'
+      - 'remoteterm-dev/**'
+      - 'tests/**'
+      - '.github/workflows/validate.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'remoteterm/**'
+      - 'remoteterm-dev/**'
+      - 'tests/**'
+      - '.github/workflows/validate.yml'
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: ha-validation-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  shellcheck:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install shellcheck
+        run: sudo apt-get update && sudo apt-get install -y shellcheck
+
+      - name: Lint run.sh scripts
+        run: |
+          shellcheck remoteterm/run.sh
+          shellcheck remoteterm-dev/run.sh
+
+      - name: Lint test script
+        run: shellcheck tests/test-run.sh
+
+      - name: Lint CI helper scripts
+        run: |
+          shellcheck .github/scripts/resolve-stable-release.sh
+          shellcheck .github/scripts/resolve-edge-publication.sh
+
+  run-sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Verify run.sh scripts are identical
+        run: |
+          diff -u remoteterm/run.sh remoteterm-dev/run.sh || {
+            echo "stable and Bleeding Edge run.sh scripts have drifted" >&2
+            exit 1
+          }
+          echo "Both run.sh scripts are identical."
+
+  manifest-validation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install dependencies
+        run: |
+          sudo apt-get update && sudo apt-get install -y jq
+          python3 -c "import yaml" 2>/dev/null || pip3 install pyyaml
+
+      - name: Validate repository.yaml
+        run: |
+          python3 << 'PYEOF'
+          import yaml
+          with open('repository.yaml') as f:
+              d = yaml.safe_load(f)
+          assert isinstance(d, dict), 'must be object'
+          assert isinstance(d.get('name'), str) and len(d['name']) > 0, 'missing name'
+          assert isinstance(d.get('url'), str) and d['url'].startswith('https://github.com/'), 'bad url'
+          assert isinstance(d.get('maintainer'), str) and len(d['maintainer']) > 0, 'missing maintainer'
+          print('repository.yaml: valid')
+          PYEOF
+
+      - name: Validate stable config.yaml structure
+        run: |
+          python3 << 'PYEOF'
+          import yaml
+          with open('remoteterm/config.yaml') as f:
+              d = yaml.safe_load(f)
+          assert isinstance(d, dict)
+          assert isinstance(d.get('name'), str) and len(d['name']) > 0
+          assert isinstance(d.get('version'), str)
+          assert isinstance(d.get('slug'), str) and len(d['slug']) > 0
+          assert isinstance(d.get('description'), str)
+          assert isinstance(d.get('image'), str)
+          assert d.get('ingress') == True
+          assert isinstance(d.get('ingress_port'), int)
+          assert isinstance(d.get('arch'), list) and set(d['arch']) == {'amd64', 'aarch64'}
+          assert d.get('hassio_api') == True
+          assert isinstance(d.get('services'), list) and 'mqtt:want' in d['services']
+          assert isinstance(d.get('map'), list) and 'data:rw' in d['map']
+          assert isinstance(d.get('options'), dict)
+          assert isinstance(d.get('schema'), dict)
+          assert sorted(d['options'].keys()) == sorted(d['schema'].keys()), 'options/schema mismatch'
+          print('stable config.yaml: valid')
+          PYEOF
+
+      - name: Validate edge config.yaml structure
+        run: |
+          python3 << 'PYEOF'
+          import yaml
+          with open('remoteterm-dev/config.yaml') as f:
+              d = yaml.safe_load(f)
+          assert isinstance(d, dict)
+          assert isinstance(d.get('name'), str) and len(d['name']) > 0
+          assert isinstance(d.get('version'), str)
+          assert isinstance(d.get('slug'), str) and len(d['slug']) > 0
+          assert isinstance(d.get('description'), str)
+          assert isinstance(d.get('image'), str)
+          assert d.get('stage') == 'experimental'
+          assert d.get('ingress') == True
+          assert isinstance(d.get('ingress_port'), int)
+          assert isinstance(d.get('arch'), list) and set(d['arch']) == {'amd64', 'aarch64'}
+          assert d.get('hassio_api') == True
+          assert isinstance(d.get('services'), list) and 'mqtt:want' in d['services']
+          assert isinstance(d.get('map'), list) and 'data:rw' in d['map']
+          assert isinstance(d.get('options'), dict)
+          assert isinstance(d.get('schema'), dict)
+          assert sorted(d['options'].keys()) == sorted(d['schema'].keys()), 'options/schema mismatch'
+          print('edge config.yaml: valid')
+          PYEOF
+
+      - name: Check slugs and names are distinct
+        run: |
+          python3 << 'PYEOF'
+          import yaml
+          with open('remoteterm/config.yaml') as f:
+              s = yaml.safe_load(f)
+          with open('remoteterm-dev/config.yaml') as f:
+              e = yaml.safe_load(f)
+          assert s['slug'] != e['slug'], 'slugs must differ'
+          assert s['name'] != e['name'], 'names must differ'
+          assert s['slug'] == 'meshrik', f'unexpected stable slug: {s["slug"]}'
+          assert e['slug'] == 'meshrik-dev', f'unexpected edge slug: {e["slug"]}'
+          print(f'Stable: slug={s["slug"]}, name={s["name"]}')
+          print(f'Edge:   slug={e["slug"]}, name={e["name"]}')
+          PYEOF
+
+      - name: Validate options/schema parity across channels
+        run: |
+          python3 << 'PYEOF'
+          import yaml
+          with open('remoteterm/config.yaml') as f:
+              s = yaml.safe_load(f)
+          with open('remoteterm-dev/config.yaml') as f:
+              e = yaml.safe_load(f)
+          assert sorted(s['options'].keys()) == sorted(e['options'].keys()), 'options differ'
+          assert sorted(s['schema'].keys()) == sorted(e['schema'].keys()), 'schema differs'
+          print('Both channels declare the same options and schema.')
+          PYEOF
+
+      - name: Validate image names
+        run: |
+          python3 << 'PYEOF'
+          import yaml
+          with open('remoteterm/config.yaml') as f:
+              s = yaml.safe_load(f)
+          with open('remoteterm-dev/config.yaml') as f:
+              e = yaml.safe_load(f)
+          assert s['image'] != e['image'], 'images must differ'
+          assert 'ghcr.io/bjorkan/ha-meshrik/' in s['image'], f'bad stable image: {s["image"]}'
+          assert 'ghcr.io/bjorkan/ha-meshrik/' in e['image'], f'bad edge image: {e["image"]}'
+          print(f'Stable image: {s["image"]}')
+          print(f'Edge image:   {e["image"]}')
+          PYEOF
+
+      - name: Validate source-lock.json structure (stable)
+        run: |
+          jq -e '
+            type == "object" and
+            (.source_version | type == "string") and
+            (.source_sha | type == "string" and test("^[0-9a-f]{40}$")) and
+            (.source_image | type == "string") and
+            (.source_digest | type == "string" and test("^sha256:")) and
+            (.source_url | type == "string") and
+            (.wrapper_version | type == "string") and
+            (.wrapper_image | type == "string") and
+            (.wrapper_digest | type == "string" and test("^sha256:"))
+          ' remoteterm/source-lock.json > /dev/null
+
+      - name: Validate source-lock.json structure (edge)
+        run: |
+          jq -e '
+            type == "object" and
+            (.source_sha | type == "string" and test("^[0-9a-f]{40}$")) and
+            (.source_image | type == "string") and
+            (.source_digest | type == "string" and test("^sha256:")) and
+            (.source_url | type == "string") and
+            (.wrapper_version | type == "string") and
+            (.wrapper_image | type == "string") and
+            (.wrapper_digest | type == "string" and test("^sha256:"))
+          ' remoteterm-dev/source-lock.json > /dev/null
+
+      - name: Validate version consistency across manifests
+        run: |
+          python3 << 'PYEOF'
+          import yaml, json
+          for label, cfg_path, lock_path in [
+              ('stable', 'remoteterm/config.yaml', 'remoteterm/source-lock.json'),
+              ('edge',   'remoteterm-dev/config.yaml', 'remoteterm-dev/source-lock.json'),
+          ]:
+              with open(cfg_path) as f:
+                  cfg_ver = yaml.safe_load(f)['version']
+              with open(lock_path) as f:
+                  lock_ver = json.load(f)['wrapper_version']
+              assert cfg_ver == lock_ver, f'{label} version mismatch: config={cfg_ver}, lock={lock_ver}'
+              print(f'{label} version {cfg_ver} consistent across manifests.')
+          PYEOF
+
+  dockerfile-validation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install hadolint
+        run: |
+          HADOLINT_URL="https://github.com/hadolint/hadolint/releases/download/v2.12.0/hadolint-Linux-x86_64"
+          sudo curl -sSL "$HADOLINT_URL" -o /usr/local/bin/hadolint
+          sudo chmod +x /usr/local/bin/hadolint
+
+      - name: Lint stable Dockerfile
+        run: hadolint remoteterm/Dockerfile --failure-threshold=warning
+
+      - name: Lint edge Dockerfile
+        run: hadolint remoteterm-dev/Dockerfile --failure-threshold=warning
+
+      - name: Verify HA image labels (stable)
+        run: |
+          grep -q 'io.hass.type="app"' remoteterm/Dockerfile
+          grep -q 'io.hass.arch="aarch64|amd64"' remoteterm/Dockerfile
+          grep -q 'io.hass.name="MESHRIK"' remoteterm/Dockerfile
+          grep -q 'org.opencontainers.image.source' remoteterm/Dockerfile
+          grep -q 'org.opencontainers.image.licenses="MIT"' remoteterm/Dockerfile
+
+      - name: Verify HA image labels (edge)
+        run: |
+          grep -q 'io.hass.type="app"' remoteterm-dev/Dockerfile
+          grep -q 'io.hass.arch="aarch64|amd64"' remoteterm-dev/Dockerfile
+          grep -q 'io.hass.name="MESHRIK - Bleeding Edge"' remoteterm-dev/Dockerfile
+          grep -q 'org.opencontainers.image.source' remoteterm-dev/Dockerfile
+          grep -q 'org.opencontainers.image.licenses="MIT"' remoteterm-dev/Dockerfile
+
+      - name: Verify base image channels
+        run: |
+          grep -q 'ghcr.io/bjorkan/meshrik:latest' remoteterm/Dockerfile || {
+            echo "Stable Dockerfile must default to :latest channel" >&2
+            exit 1
+          }
+          grep -q 'ghcr.io/bjorkan/meshrik:edge' remoteterm-dev/Dockerfile || {
+            echo "Edge Dockerfile must default to :edge channel" >&2
+            exit 1
+          }
+
+  wrapper-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq
+
+      - name: Run startup wrapper test suite
+        run: bash tests/test-run.sh
+
+  workflow-lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Validate GitHub workflows YAML
+        run: |
+          for wf in .github/workflows/*.yml .github/workflows/*.yaml; do
+            [ -f "$wf" ] || continue
+            echo "--- $wf ---"
+            python3 -c "import yaml; yaml.safe_load(open('$wf')); print('  valid')" || {
+              echo "Invalid YAML in $wf" >&2
+              exit 1
+            }
+          done
