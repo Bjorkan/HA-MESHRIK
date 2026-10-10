@@ -1,5 +1,5 @@
 name: "MESHRIK - Bleeding Edge"
-version: "2026.10.10.5"
+version: "2026.10.10.6"
 slug: "meshrik-dev"
 description: "Experimental MESHRIK build tracking every successful main push; may be unstable or broken"
 url: "https://github.com/Bjorkan/HA-MESHRIK"

@@ -1,9 +1,9 @@
 {
-  "source_sha": "b81307e2fea588ab78dd85b940b3b6324e0a33e0",
+  "source_sha": "e3c883a668370eb604a8bed1d482fe49a368374c",
   "source_image": "ghcr.io/bjorkan/meshrik",
-  "source_digest": "sha256:1f4db2ae310e524f975bfda0096fb14e29e84a9d64945326dbaa6542b95a8653",
-  "source_url": "https://github.com/Bjorkan/MESHRIK/commit/b81307e2fea588ab78dd85b940b3b6324e0a33e0",
-  "wrapper_version": "2026.10.10.5",
+  "source_digest": "sha256:57937cd24d0a8f3103190e70acd5bffae4a955858925653956638420eeb3f08d",
+  "source_url": "https://github.com/Bjorkan/MESHRIK/commit/e3c883a668370eb604a8bed1d482fe49a368374c",
+  "wrapper_version": "2026.10.10.6",
   "wrapper_image": "ghcr.io/bjorkan/ha-meshrik/remoteterm-app-dev",
-  "wrapper_digest": "sha256:2c629844a802ee637ada50a9b29e1cc6f3022aa3dec7f74f7a083c13193c86f2"
+  "wrapper_digest": "sha256:c7cb96823be4450368da26105d77c3c94c95c2fdc9bd8533961aea6a5ccb8b3f"
 }
