@@ -1,5 +1,11 @@
 # Changelog
 
+## 3.17.1.6
+
+- Package [MESHRIK 3.17.1](https://github.com/Bjorkan/MESHRIK/releases/tag/v3.17.1) from commit `d08bb1113f08928e16585f9f0d5d84aeae6df2e4`.
+- Pin source image digest `sha256:1a609379c6eeb2b6a53d027b933ff2d2754797a318683f6a16c9dc0b2bf2a353`.
+
+
 ## 3.17.1.3
 
 - Package [MESHRIK 3.17.1](https://github.com/Bjorkan/MESHRIK/releases/tag/v3.17.1) from commit `d08bb1113f08928e16585f9f0d5d84aeae6df2e4`.

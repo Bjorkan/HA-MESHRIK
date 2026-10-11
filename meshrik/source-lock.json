@@ -4,7 +4,7 @@
   "source_image": "ghcr.io/bjorkan/meshrik",
   "source_digest": "sha256:1a609379c6eeb2b6a53d027b933ff2d2754797a318683f6a16c9dc0b2bf2a353",
   "source_url": "https://github.com/Bjorkan/MESHRIK/releases/tag/v3.17.1",
-  "wrapper_version": "3.17.1.3",
-  "wrapper_image": "ghcr.io/bjorkan/ha-meshrik/remoteterm-app",
-  "wrapper_digest": "sha256:5e4b0f83bea9303be4595ebd842b13478a137a833fe33c7ab51992df341611d5"
+  "wrapper_version": "3.17.1.6",
+  "wrapper_image": "ghcr.io/bjorkan/ha-meshrik/meshrik-app",
+  "wrapper_digest": "sha256:bd459edf83fd4e5a4fb00c0fcb6a6d35531bb4169e09d16ab1b3d0e11865b4db"
 }

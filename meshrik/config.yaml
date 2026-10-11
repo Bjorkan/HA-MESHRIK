@@ -1,5 +1,5 @@
 name: "MESHRIK"
-version: "3.17.1.3"
+version: "3.17.1.6"
 slug: "meshrik"
 description: "MESHRIK web interface for MeshCore radio networks (stable channel)"
 url: "https://github.com/Bjorkan/HA-MESHRIK"
