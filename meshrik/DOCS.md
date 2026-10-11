@@ -30,7 +30,30 @@ Configure exactly one connection method:
 | `basic_auth_password` | none | HTTP Basic Auth password; set both credentials together. |
 | `enable_message_poll_fallback` | `false` | Enable fallback message polling. |
 | `force_channel_slot_reconfigure` | `false` | Force channel-slot reconfiguration on connect. |
-| `skip_post_connect_sync` | `false` | Skip the post-connect radio sync. |
+| `skip_post_connect_sync` | `false` | **Deprecated.** Forces `passive` regardless of `startup_policy`. |
+| `passive_startup` | `false` | **Deprecated.** Also forces `passive` regardless of `startup_policy`. |
+| `startup_policy` | `sync` | `passive` (read metadata), `sync` (read-only contact/channel snapshots) or `full` (only enabled maintenance). |
+| `startup_export_private_key` | `false` | Full only: export sensitive private key material into app storage. |
+| `startup_sync_clock` | `false` | Full only: write device clock. |
+| `startup_apply_flood_scope` | `false` | Full only: write configured flood scope. |
+| `startup_send_advertisement` | `false` | Full only: allow startup/periodic RF advertisements. |
+| `startup_drain_messages` | `false` | Full only: drain pending device messages (potential offload). |
+| `startup_reconcile_contacts` | `false` | Full only: application/contact maintenance. |
+| `startup_clear_channel_slots` | `false` | Full only: **destructive** device channel slot clearing. |
+| `startup_allow_periodic_offload` | `false` | Full only: **destructive** recurring contact/channel offload. |
+| `startup_enable_telemetry_collection` | `false` | Full only: additional telemetry polling. |
+| `auto_reboot_on_clock_skew` | `false` | Explicit opt-in for a device reboot when clock repair requires it. |
+| `login_response_timeout_seconds` | `5` | Wait 1–60 s for an RF login response; independent of transport deadline. |
+
+The app now schedules connection bootstrap/reconnect through one worker and exposes distinct
+`connecting`, `initializing`, `ready`, `degraded`, and `failed` states. A healthy HTTP response is
+not proof the radio finished initialization. `sync` is the safe default. In `full`, **no**
+maintenance opt-in is enabled automatically. When switching modes, the deprecated
+`skip_post_connect_sync` and `passive_startup` must both be false unless you want `passive`.
+
+**Warning:** enabling channel clearing or periodic offload can remove device-resident content.
+Back up your radio and MESHRIK data before switching them on; destructive actions must never
+be used as part of passive startup smoke testing.
 
 ## MQTT and persistence
 

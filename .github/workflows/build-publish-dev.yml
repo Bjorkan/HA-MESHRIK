@@ -27,7 +27,7 @@ concurrency:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: bjorkan/ha-meshrik/remoteterm-app-dev
+  IMAGE_NAME: bjorkan/ha-meshrik/meshrik-app-dev
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
@@ -71,7 +71,7 @@ jobs:
         id: build
         uses: docker/build-push-action@v7
         with:
-          context: remoteterm-dev/
+          context: meshrik-dev/
           platforms: linux/amd64,linux/arm64
           push: true
           pull: true
@@ -112,11 +112,11 @@ jobs:
             exit 1
           }
 
-          sed -i "s/^version: .*/version: \"${WRAPPER_VERSION}\"/" remoteterm-dev/config.yaml
+          sed -i "s/^version: .*/version: \"${WRAPPER_VERSION}\"/" meshrik-dev/config.yaml
 
           changelog=$(mktemp)
           {
-            head -n 1 remoteterm-dev/CHANGELOG.md
+            head -n 1 meshrik-dev/CHANGELOG.md
             printf '\n## %s\n\n' "${WRAPPER_VERSION}"
             # Markdown backticks are literal.
             # shellcheck disable=SC2016
@@ -125,9 +125,9 @@ jobs:
             # Markdown backticks are literal.
             # shellcheck disable=SC2016
             printf -- '- Pin source image digest `%s`.\n\n' "${SOURCE_DIGEST}"
-            tail -n +2 remoteterm-dev/CHANGELOG.md
+            tail -n +2 meshrik-dev/CHANGELOG.md
           } > "${changelog}"
-          mv "${changelog}" remoteterm-dev/CHANGELOG.md
+          mv "${changelog}" meshrik-dev/CHANGELOG.md
 
           jq -n \
             --arg source_sha "${SOURCE_SHA}" \
@@ -141,11 +141,11 @@ jobs:
               source_digest: $source_digest, source_url: $source_url,
               wrapper_version: $wrapper_version, wrapper_image: $wrapper_image,
               wrapper_digest: $wrapper_digest}' \
-            > remoteterm-dev/source-lock.json
+            > meshrik-dev/source-lock.json
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add remoteterm-dev/config.yaml remoteterm-dev/CHANGELOG.md \
-            remoteterm-dev/source-lock.json
+          git add meshrik-dev/config.yaml meshrik-dev/CHANGELOG.md \
+            meshrik-dev/source-lock.json
           git commit -m "chore: publish MESHRIK edge ${SOURCE_SHA:0:12} as ${WRAPPER_VERSION}"
           git push origin HEAD:main

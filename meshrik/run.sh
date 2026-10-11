@@ -72,6 +72,50 @@ MESHCORE_SKIP_POST_CONNECT_SYNC=$(get_val skip_post_connect_sync)
 export MESHCORE_LOG_LEVEL MESHCORE_DISABLE_BOTS
 export MESHCORE_ENABLE_MESSAGE_POLL_FALLBACK MESHCORE_FORCE_CHANNEL_SLOT_RECONFIGURE
 export MESHCORE_SKIP_POST_CONNECT_SYNC
+
+# Settings introduced by MESHRIK #48/#49: handle legacy options.json that
+# does not yet contain them without granting any new maintenance permissions.
+# The MESHCORE_SKIP_POST_CONNECT_SYNC legacy flag intentionally overrides
+# startup_policy=full to passive, as enforced by the MESHRIK settings model.
+startup_policy=$(jq -r '.startup_policy // "sync"' "$OPTIONS")
+case "$startup_policy" in
+    passive|sync|full) export MESHCORE_STARTUP_POLICY="$startup_policy" ;;
+    *) echo "Invalid startup_policy (expected passive, sync or full)." >&2; exit 1 ;;
+esac
+
+# All potentially modifying startup operations remain individually opt-in.
+# Never use eval or export arbitrary user-supplied environment variable names.
+MESHCORE_PASSIVE_STARTUP=$(jq -r 'if .passive_startup == null then false else .passive_startup end' "$OPTIONS")
+export MESHCORE_PASSIVE_STARTUP
+MESHCORE_STARTUP_EXPORT_PRIVATE_KEY=$(jq -r 'if .startup_export_private_key == null then false else .startup_export_private_key end' "$OPTIONS")
+export MESHCORE_STARTUP_EXPORT_PRIVATE_KEY
+MESHCORE_STARTUP_SYNC_CLOCK=$(jq -r 'if .startup_sync_clock == null then false else .startup_sync_clock end' "$OPTIONS")
+export MESHCORE_STARTUP_SYNC_CLOCK
+MESHCORE_STARTUP_APPLY_FLOOD_SCOPE=$(jq -r 'if .startup_apply_flood_scope == null then false else .startup_apply_flood_scope end' "$OPTIONS")
+export MESHCORE_STARTUP_APPLY_FLOOD_SCOPE
+MESHCORE_STARTUP_SEND_ADVERTISEMENT=$(jq -r 'if .startup_send_advertisement == null then false else .startup_send_advertisement end' "$OPTIONS")
+export MESHCORE_STARTUP_SEND_ADVERTISEMENT
+MESHCORE_STARTUP_DRAIN_MESSAGES=$(jq -r 'if .startup_drain_messages == null then false else .startup_drain_messages end' "$OPTIONS")
+export MESHCORE_STARTUP_DRAIN_MESSAGES
+MESHCORE_STARTUP_RECONCILE_CONTACTS=$(jq -r 'if .startup_reconcile_contacts == null then false else .startup_reconcile_contacts end' "$OPTIONS")
+export MESHCORE_STARTUP_RECONCILE_CONTACTS
+MESHCORE_STARTUP_CLEAR_CHANNEL_SLOTS=$(jq -r 'if .startup_clear_channel_slots == null then false else .startup_clear_channel_slots end' "$OPTIONS")
+export MESHCORE_STARTUP_CLEAR_CHANNEL_SLOTS
+MESHCORE_STARTUP_ALLOW_PERIODIC_OFFLOAD=$(jq -r 'if .startup_allow_periodic_offload == null then false else .startup_allow_periodic_offload end' "$OPTIONS")
+export MESHCORE_STARTUP_ALLOW_PERIODIC_OFFLOAD
+MESHCORE_STARTUP_ENABLE_TELEMETRY_COLLECTION=$(jq -r 'if .startup_enable_telemetry_collection == null then false else .startup_enable_telemetry_collection end' "$OPTIONS")
+export MESHCORE_STARTUP_ENABLE_TELEMETRY_COLLECTION
+MESHCORE_AUTO_REBOOT_ON_CLOCK_SKEW=$(jq -r 'if .auto_reboot_on_clock_skew == null then false else .auto_reboot_on_clock_skew end' "$OPTIONS")
+export MESHCORE_AUTO_REBOOT_ON_CLOCK_SKEW
+MESHCORE_LOGIN_RESPONSE_TIMEOUT_SECONDS=$(jq -r 'if .login_response_timeout_seconds == null then 5 else .login_response_timeout_seconds end' "$OPTIONS")
+export MESHCORE_LOGIN_RESPONSE_TIMEOUT_SECONDS
+
+# Validate the bounded login wait before exporting to Pydantic settings.
+if ! [[ "$MESHCORE_LOGIN_RESPONSE_TIMEOUT_SECONDS" =~ ^[0-9]+$ ]] ||
+   (( MESHCORE_LOGIN_RESPONSE_TIMEOUT_SECONDS < 1 || MESHCORE_LOGIN_RESPONSE_TIMEOUT_SECONDS > 60 )); then
+    echo "login_response_timeout_seconds must be an integer in 1..60." >&2
+    exit 1
+fi
 export MESHCORE_DATABASE_PATH="/data/meshcore.db"
 
 AUTH_USER=$(get_str basic_auth_username)
@@ -181,7 +225,7 @@ for ((attempt = 1; attempt <= READINESS_ATTEMPTS; attempt++)); do
     if api_request --retry 0 --max-time 2 --output /dev/null \
         "${API_BASE}/api/health" 2>/dev/null; then
         READY=true
-        echo "MESHRIK is ready."
+        echo "MESHRIK HTTP API is responding; radio startup may still be initializing."
         break
     fi
 

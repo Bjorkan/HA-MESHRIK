@@ -113,7 +113,17 @@ before declaring either channel ready.
 - [ ] Starting/stopping one does not affect the other
 - [ ] Updating one does not affect the other
 
-## 9. Legacy Slug Migration (if applicable)
+## 9. Renamed directories / wrapper packages
+
+- [ ] Repo exposes `meshrik/` and `meshrik-dev/`; no remaining current directory named `remoteterm*`
+- [ ] New GHCR packages `ghcr.io/bjorkan/ha-meshrik/meshrik-app*` exist for `amd64` and `arm64`
+- [ ] First stable/edge reconciliation after rename rebuilds wrappers even when upstream digest is unchanged
+- [ ] The new packages are published **before** relying on their names in Home Assistant
+- [ ] Migration to new wrapper image names preserves each existing `meshrik`/`meshrik-dev` volume after backup
+- [ ] Check that old `remoteterm-app*` images are not silently mistaken for the renamed packages
+- [ ] The version and image in each manifest match the **new** wrapper's actual published tag/digest
+
+## 9a. Legacy Slug Migration (if applicable)
 
 - [ ] Existing `remoteterm` slug installation shows as separate app
 - [ ] New `meshrik` slug installation does not overwrite legacy data
@@ -134,7 +144,16 @@ before declaring either channel ready.
 - [ ] No zombie processes after stop
 - [ ] WAL checkpoint performed on shutdown
 
-## 12. Release Channel Integrity
+## 12. New startup policy and readiness
+
+- [ ] Passive startup: only metadata/clock reads, no key export, radio writes, advertisement, drain or clear
+- [ ] Sync startup: read contact/channel snapshots, no radio deletions, no RF advert, no offload
+- [ ] Full without opt-ins: still no automatic radio writes or RF transmissions
+- [ ] Legacy `skip_post_connect_sync=true` or `passive_startup=true` forces effective passive policy
+- [ ] Lifecycle readiness (`initializing` vs `ready`/`degraded`) visible in `/api/health`
+- [ ] Confirm app's MQTT bootstrap remains one-time and does not overwrite existing fanouts
+
+## 13. Release Channel Integrity
 
 - [ ] Stable uses `ghcr.io/bjorkan/meshrik:latest` (pinned digest)
 - [ ] Edge uses `ghcr.io/bjorkan/meshrik:edge` (pinned digest)

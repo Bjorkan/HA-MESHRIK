@@ -3,8 +3,8 @@ set -euo pipefail
 
 meshrik_repository="${MESHRIK_REPOSITORY:-Bjorkan/MESHRIK}"
 meshrik_image="${MESHRIK_IMAGE:-ghcr.io/bjorkan/meshrik}"
-lock_file="${SOURCE_LOCK_FILE:-remoteterm/source-lock.json}"
-wrapper_image="${WRAPPER_IMAGE:-ghcr.io/bjorkan/ha-meshrik/remoteterm-app}"
+lock_file="${SOURCE_LOCK_FILE:-meshrik/source-lock.json}"
+wrapper_image="${WRAPPER_IMAGE:-ghcr.io/bjorkan/ha-meshrik/meshrik-app}"
 
 release_json=$(gh api "repos/${meshrik_repository}/releases/latest")
 release_tag=$(jq -er '.tag_name' <<<"${release_json}")
@@ -68,16 +68,21 @@ if [[ -f "${lock_file}" ]]; then
   if [[ "${locked_source_version}" == "${source_version}" &&
         "${locked_source_sha}" == "${source_sha}" &&
         "${locked_source_digest}" == "${source_digest}" ]]; then
-    wrapper_version=$(jq -er '.wrapper_version' "${lock_file}")
-    wrapper_digest=$(jq -er '.wrapper_digest' "${lock_file}")
-    wrapper_manifest=$(docker buildx imagetools inspect \
-      "${wrapper_image}@${wrapper_digest}" --format '{{json .Manifest}}')
-    jq -e --arg digest "${wrapper_digest}" '
+    locked_wrapper_image=$(jq -er '.wrapper_image' "${lock_file}")
+    if [[ "${locked_wrapper_image}" == "${wrapper_image}" ]]; then
+      wrapper_version=$(jq -er '.wrapper_version' "${lock_file}")
+      wrapper_digest=$(jq -er '.wrapper_digest' "${lock_file}")
+      wrapper_manifest=$(docker buildx imagetools inspect \
+        "${wrapper_image}@${wrapper_digest}" --format '{{json .Manifest}}')
+      jq -e --arg digest "${wrapper_digest}" '
       .digest == $digest and
       ([.manifests[].platform | select(.os == "linux") | .architecture]
         | contains(["amd64", "arm64"]))
-    ' <<<"${wrapper_manifest}" >/dev/null
-    needs_publish=false
+      ' <<<"${wrapper_manifest}" >/dev/null
+      needs_publish=false
+    else
+      echo "Wrapper registry renamed; publish a new stable image before updating its lock."
+    fi
   fi
 fi
 

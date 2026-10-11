@@ -77,6 +77,7 @@ make_fake_tools() {
         'if [ "${FAKE_UV_MODE:-serve}" = exit ]; then exit "${FAKE_UV_STATUS:-23}"; fi' \
         'trap '\''printf terminated > "${UV_TERM_FILE}"; exit 0'\'' TERM INT' \
         'printf started > "${UV_STARTED_FILE}"' \
+        'if [ -n "${STARTUP_ENV_FILE:-}" ]; then env | grep -E "^MESHCORE_(STARTUP_|PASSIVE_STARTUP|SKIP_POST_CONNECT_SYNC|LOGIN_RESPONSE_TIMEOUT_SECONDS|AUTO_REBOOT_ON_CLOCK_SKEW)" | sort > "${STARTUP_ENV_FILE}"; fi' \
         'while :; do sleep 1; done' \
         > "$apply_uv"
 
@@ -150,6 +151,7 @@ start_wrapper() {
         POST_FILE="$case_dir/post.json" \
         SUPERVISOR_FILE="$case_dir/supervisor" \
         UV_STARTED_FILE="$case_dir/uv-started" \
+        STARTUP_ENV_FILE="$case_dir/startup-env" \
         UV_TERM_FILE="$case_dir/uv-terminated" \
         "$@" \
         bash "$script" > "$case_dir/output.log" 2>&1 &
@@ -209,7 +211,7 @@ run_existing_fanout_case() {
     mkdir -p "$case_dir"
     make_fake_tools "$case_dir/tools"
     write_options "$case_dir/options.json"
-    start_wrapper "$ROOT/remoteterm/run.sh" "$case_dir" \
+    start_wrapper "$ROOT/meshrik/run.sh" "$case_dir" \
         SUPERVISOR_TOKEN=token EXPECTED_SUPERVISOR_TOKEN=token \
         MQTT_RESPONSE='{"result":"ok","data":{"host":"broker","port":1883,"username":"new","password":"new","ssl":false}}' \
         FANOUT_RESPONSE='[{"type":"mqtt_ha","config":{"broker_host":"custom"}}]'
@@ -224,7 +226,7 @@ run_invalid_responses_case() {
     mkdir -p "$case_dir"
     make_fake_tools "$case_dir/tools"
     write_options "$case_dir/options.json"
-    start_wrapper "$ROOT/remoteterm-dev/run.sh" "$case_dir" \
+    start_wrapper "$ROOT/meshrik-dev/run.sh" "$case_dir" \
         SUPERVISOR_TOKEN=token EXPECTED_SUPERVISOR_TOKEN=token \
         MQTT_RESPONSE='{"result":"ok","data":{"host":"broker","port":"not-a-number","ssl":"yes"}}'
     wait_for_file "$case_dir/health" "$WRAPPER_PID"
@@ -238,7 +240,7 @@ run_missing_token_case() {
     mkdir -p "$case_dir"
     make_fake_tools "$case_dir/tools"
     write_options "$case_dir/options.json"
-    start_wrapper "$ROOT/remoteterm/run.sh" "$case_dir"
+    start_wrapper "$ROOT/meshrik/run.sh" "$case_dir"
     wait_for_file "$case_dir/health" "$WRAPPER_PID"
     stop_wrapper "$WRAPPER_PID"
     assert_no_file "$case_dir/supervisor"
@@ -266,7 +268,7 @@ run_child_exit_case() {
         SUPERVISOR_FILE="$case_dir/supervisor" UV_STARTED_FILE="$case_dir/uv-started" \
         UV_TERM_FILE="$case_dir/uv-terminated" FAKE_UV_MODE=exit FAKE_UV_STATUS=23 \
         HEALTH_MODE=fail \
-        bash "$ROOT/remoteterm-dev/run.sh" > "$case_dir/output.log" 2>&1; then
+        bash "$ROOT/meshrik-dev/run.sh" > "$case_dir/output.log" 2>&1; then
         status=0
     else
         status=$?
@@ -294,7 +296,7 @@ run_readiness_timeout_case() {
         FANOUT_GET_FILE="$case_dir/fanout-get" POST_FILE="$case_dir/post.json" \
         SUPERVISOR_FILE="$case_dir/supervisor" UV_STARTED_FILE="$case_dir/uv-started" \
         UV_TERM_FILE="$case_dir/uv-terminated" HEALTH_MODE=fail \
-        bash "$ROOT/remoteterm/run.sh" > "$case_dir/output.log" 2>&1; then
+        bash "$ROOT/meshrik/run.sh" > "$case_dir/output.log" 2>&1; then
         status=0
     else
         status=$?
@@ -304,15 +306,68 @@ run_readiness_timeout_case() {
     grep -Fq 'did not become ready after 2 attempts' "$case_dir/output.log"
 }
 
-cmp -s "$ROOT/remoteterm/run.sh" "$ROOT/remoteterm-dev/run.sh" || \
+# Validate policy propagation without a radio or real MQTT service.
+run_startup_policy_cases() {
+    local case_dir="$TMP_ROOT/startup-policy"
+    mkdir -p "$case_dir"
+    make_fake_tools "$case_dir/tools"
+    write_options "$case_dir/options.json"
+    # Enable exactly two state-changing permissions to verify independent opt-ins.
+    jq '. + {startup_policy:"full", startup_send_advertisement:true,
+        startup_sync_clock:true, login_response_timeout_seconds:17}' \
+        "$case_dir/options.json" > "$case_dir/opt.new"
+    mv "$case_dir/opt.new" "$case_dir/options.json"
+    start_wrapper "$ROOT/meshrik/run.sh" "$case_dir" \
+        SUPERVISOR_TOKEN='' \
+        MQTT_RESPONSE='not-json'
+    wait_for_file "$case_dir/startup-env" "$WRAPPER_PID"
+    stop_wrapper "$WRAPPER_PID"
+    grep -Fxq 'MESHCORE_STARTUP_POLICY=full' "$case_dir/startup-env"
+    grep -Fxq 'MESHCORE_STARTUP_SEND_ADVERTISEMENT=true' "$case_dir/startup-env"
+    grep -Fxq 'MESHCORE_STARTUP_SYNC_CLOCK=true' "$case_dir/startup-env"
+    grep -Fxq 'MESHCORE_STARTUP_CLEAR_CHANNEL_SLOTS=false' "$case_dir/startup-env"
+    grep -Fxq 'MESHCORE_STARTUP_ALLOW_PERIODIC_OFFLOAD=false' "$case_dir/startup-env"
+    grep -Fxq 'MESHCORE_LOGIN_RESPONSE_TIMEOUT_SECONDS=17' "$case_dir/startup-env"
+
+    local old_dir="$TMP_ROOT/legacy-options"
+    mkdir -p "$old_dir"
+    make_fake_tools "$old_dir/tools"
+    write_options "$old_dir/options.json"
+    # The saved options from the previous wrapper have no startup_* fields.
+    start_wrapper "$ROOT/meshrik-dev/run.sh" "$old_dir" SUPERVISOR_TOKEN=''
+    wait_for_file "$old_dir/startup-env" "$WRAPPER_PID"
+    stop_wrapper "$WRAPPER_PID"
+    grep -Fxq 'MESHCORE_STARTUP_POLICY=sync' "$old_dir/startup-env"
+    grep -Fxq 'MESHCORE_STARTUP_CLEAR_CHANNEL_SLOTS=false' "$old_dir/startup-env"
+    grep -Fxq 'MESHCORE_STARTUP_SEND_ADVERTISEMENT=false' "$old_dir/startup-env"
+
+    local invalid_dir="$TMP_ROOT/invalid-policy"
+    mkdir -p "$invalid_dir"
+    make_fake_tools "$invalid_dir/tools"
+    write_options "$invalid_dir/options.json"
+    jq '.startup_policy="unsafe"' "$invalid_dir/options.json" > "$invalid_dir/new"
+    mv "$invalid_dir/new" "$invalid_dir/options.json"
+    local status
+    if env MESHRIK_HA_OPTIONS="$invalid_dir/options.json" MESHRIK_HA_APP_DIR="$invalid_dir" \
+        bash "$ROOT/meshrik/run.sh" > "$invalid_dir/output.log" 2>&1; then
+        status=0
+    else
+        status=$?
+    fi
+    [ "$status" -ne 0 ] || fail "invalid startup policy was accepted"
+    grep -Fq 'Invalid startup_policy' "$invalid_dir/output.log"
+}
+
+cmp -s "$ROOT/meshrik/run.sh" "$ROOT/meshrik-dev/run.sh" || \
     fail "stable and Bleeding Edge startup scripts have drifted"
 
-run_authenticated_tls_case "$ROOT/remoteterm/run.sh" stable-auth-tls
-run_authenticated_tls_case "$ROOT/remoteterm-dev/run.sh" dev-auth-tls
+run_authenticated_tls_case "$ROOT/meshrik/run.sh" stable-auth-tls
+run_authenticated_tls_case "$ROOT/meshrik-dev/run.sh" dev-auth-tls
 run_existing_fanout_case
 run_invalid_responses_case
 run_missing_token_case
 run_child_exit_case
 run_readiness_timeout_case
+run_startup_policy_cases
 
 echo "All startup wrapper tests passed."

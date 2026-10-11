@@ -3,8 +3,8 @@ set -euo pipefail
 
 meshrik_repository="${MESHRIK_REPOSITORY:-Bjorkan/MESHRIK}"
 meshrik_image="${MESHRIK_IMAGE:-ghcr.io/bjorkan/meshrik}"
-lock_file="${SOURCE_LOCK_FILE:-remoteterm-dev/source-lock.json}"
-wrapper_image="${WRAPPER_IMAGE:-ghcr.io/bjorkan/ha-meshrik/remoteterm-app-dev}"
+lock_file="${SOURCE_LOCK_FILE:-meshrik-dev/source-lock.json}"
+wrapper_image="${WRAPPER_IMAGE:-ghcr.io/bjorkan/ha-meshrik/meshrik-app-dev}"
 
 manifest_json=$(docker buildx imagetools inspect \
   "${meshrik_image}:edge" --format '{{json .Manifest}}')
@@ -59,16 +59,21 @@ if [[ -f "${lock_file}" ]]; then
       echo "One edge digest maps to conflicting source commits" >&2
       exit 1
     }
-    wrapper_version=$(jq -er '.wrapper_version' "${lock_file}")
-    wrapper_digest=$(jq -er '.wrapper_digest' "${lock_file}")
-    wrapper_manifest=$(docker buildx imagetools inspect \
-      "${wrapper_image}@${wrapper_digest}" --format '{{json .Manifest}}')
-    jq -e --arg digest "${wrapper_digest}" '
+    locked_wrapper_image=$(jq -er '.wrapper_image' "${lock_file}")
+    if [[ "${locked_wrapper_image}" == "${wrapper_image}" ]]; then
+      wrapper_version=$(jq -er '.wrapper_version' "${lock_file}")
+      wrapper_digest=$(jq -er '.wrapper_digest' "${lock_file}")
+      wrapper_manifest=$(docker buildx imagetools inspect \
+        "${wrapper_image}@${wrapper_digest}" --format '{{json .Manifest}}')
+      jq -e --arg digest "${wrapper_digest}" '
       .digest == $digest and
       ([.manifests[].platform | select(.os == "linux") | .architecture]
         | contains(["amd64", "arm64"]))
-    ' <<<"${wrapper_manifest}" >/dev/null
-    needs_publish=false
+      ' <<<"${wrapper_manifest}" >/dev/null
+      needs_publish=false
+    else
+      echo "Wrapper registry renamed; publish a new edge image before updating its lock."
+    fi
   elif [[ "${locked_source_sha}" != "${source_sha}" ]]; then
     comparison=$(gh api \
       "repos/${meshrik_repository}/compare/${locked_source_sha}...${source_sha}" \

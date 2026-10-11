@@ -6,7 +6,7 @@ url: "https://github.com/Bjorkan/HA-MESHRIK"
 arch:
   - amd64
   - aarch64
-image: "ghcr.io/bjorkan/ha-meshrik/remoteterm-app"
+image: "ghcr.io/bjorkan/ha-meshrik/meshrik-app"
 ingress: true
 ingress_port: 8000
 ingress_stream: true
@@ -38,6 +38,19 @@ options:
   enable_message_poll_fallback: false
   force_channel_slot_reconfigure: false
   skip_post_connect_sync: false
+  startup_policy: "sync"
+  passive_startup: false
+  startup_export_private_key: false
+  startup_sync_clock: false
+  startup_apply_flood_scope: false
+  startup_send_advertisement: false
+  startup_drain_messages: false
+  startup_reconcile_contacts: false
+  startup_clear_channel_slots: false
+  startup_allow_periodic_offload: false
+  startup_enable_telemetry_collection: false
+  auto_reboot_on_clock_skew: false
+  login_response_timeout_seconds: 5
 schema:
   serial_port: str?
   serial_baudrate: int
@@ -52,3 +65,16 @@ schema:
   enable_message_poll_fallback: bool
   force_channel_slot_reconfigure: bool
   skip_post_connect_sync: bool
+  startup_policy: list(passive|sync|full)
+  passive_startup: bool
+  startup_export_private_key: bool
+  startup_sync_clock: bool
+  startup_apply_flood_scope: bool
+  startup_send_advertisement: bool
+  startup_drain_messages: bool
+  startup_reconcile_contacts: bool
+  startup_clear_channel_slots: bool
+  startup_allow_periodic_offload: bool
+  startup_enable_telemetry_collection: bool
+  auto_reboot_on_clock_skew: bool
+  login_response_timeout_seconds: int
