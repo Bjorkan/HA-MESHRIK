@@ -6,9 +6,11 @@ APP_DIR="${MESHRIK_HA_APP_DIR:-/app}"
 API_BASE="${MESHRIK_HA_API_BASE:-http://localhost:8000}"
 SUPERVISOR_MQTT_URL="${MESHRIK_HA_MQTT_URL:-http://supervisor/services/mqtt}"
 CURL_BIN="${MESHRIK_HA_CURL_BIN:-curl}"
-UV_BIN="${MESHRIK_HA_UV_BIN:-uv}"
-READINESS_ATTEMPTS="${MESHRIK_HA_READINESS_ATTEMPTS:-30}"
+PYTHON_BIN="${MESHRIK_HA_PYTHON_BIN:-${APP_DIR}/.venv/bin/python}"
+READINESS_TIMEOUT_OVERRIDE="${MESHRIK_HA_READINESS_TIMEOUT:-}"
 READINESS_INTERVAL="${MESHRIK_HA_READINESS_INTERVAL:-1}"
+READINESS_DIAGNOSTIC_INTERVAL="${MESHRIK_HA_READINESS_DIAGNOSTIC_INTERVAL:-10}"
+MONOTONIC_CLOCK_FILE="${MESHRIK_HA_MONOTONIC_CLOCK_FILE:-/proc/uptime}"
 MQTT_RETRY_ATTEMPTS="${MESHRIK_HA_MQTT_RETRY_ATTEMPTS:-12}"
 MQTT_RETRY_INTERVAL="${MESHRIK_HA_MQTT_RETRY_INTERVAL:-10}"
 
@@ -51,6 +53,18 @@ jq -e 'type == "object"' "$OPTIONS" >/dev/null || {
 	echo "Invalid Home Assistant options JSON." >&2
 	exit 1
 }
+
+if [ -n "$READINESS_TIMEOUT_OVERRIDE" ]; then
+	# Internal override used by wrapper tests and image diagnostics.
+	READINESS_TIMEOUT=$READINESS_TIMEOUT_OVERRIDE
+else
+	READINESS_TIMEOUT=$(jq -r '.http_startup_timeout_seconds // 120' "$OPTIONS")
+	if ! [[ "$READINESS_TIMEOUT" =~ ^[0-9]+$ ]] ||
+		((READINESS_TIMEOUT < 30 || READINESS_TIMEOUT > 600)); then
+		echo "http_startup_timeout_seconds must be an integer in 30..600." >&2
+		exit 1
+	fi
+fi
 
 # Export only non-empty connection values so MESHRIK can auto-detect serial
 # devices when no explicit connection is configured.
@@ -167,6 +181,13 @@ MQTT_TLS="false"
 if ! [[ "$MQTT_RETRY_ATTEMPTS" =~ ^[1-9][0-9]*$ ]] ||
 	! [[ "$MQTT_RETRY_INTERVAL" =~ ^[0-9]+$ ]]; then
 	echo "MQTT retry attempts must be positive and interval must be non-negative." >&2
+	exit 1
+fi
+
+if ! [[ "$READINESS_TIMEOUT" =~ ^[1-9][0-9]*$ ]] ||
+	! [[ "$READINESS_INTERVAL" =~ ^[0-9]+$ ]] ||
+	! [[ "$READINESS_DIAGNOSTIC_INTERVAL" =~ ^[1-9][0-9]*$ ]]; then
+	echo "Readiness timeout and diagnostic interval must be positive; probe interval must be non-negative." >&2
 	exit 1
 fi
 
@@ -298,6 +319,14 @@ wait_for_child() {
 	fi
 }
 
+# Linux exposes boot-relative uptime from a monotonic clock. Return whole
+# seconds without spawning another process for every readiness probe.
+read_monotonic_seconds() {
+	local uptime _
+	IFS=' ' read -r uptime _ <"$MONOTONIC_CLOCK_FILE"
+	MONOTONIC_SECONDS=${uptime%%.*}
+}
+
 # Invoked by TERM/INT traps.
 # shellcheck disable=SC2317,SC2329
 forward_signal() {
@@ -315,15 +344,23 @@ cd "$APP_DIR"
 # The Supervisor credential belongs to this launcher. MESHRIK executes
 # operator-authored bots in its application process, so never let either the
 # current or legacy token variable cross that privilege boundary.
+# The image build owns dependency resolution. Starting its preinstalled Python
+# directly prevents uv from mutating the environment or downloading dev tools.
 env -u SUPERVISOR_TOKEN -u HASSIO_TOKEN \
-	"$UV_BIN" run uvicorn app.main:app --host 0.0.0.0 --port 8000 &
+	"$PYTHON_BIN" -m uvicorn app.main:app --host 0.0.0.0 --port 8000 &
 APP_PID=$!
 trap 'forward_signal 143' TERM
 trap 'forward_signal 130' INT
 
-echo "Waiting for MESHRIK to start..."
+echo "Waiting up to ${READINESS_TIMEOUT}s for the MESHRIK HTTP API to start..."
 READY=false
-for ((attempt = 1; attempt <= READINESS_ATTEMPTS; attempt++)); do
+read_monotonic_seconds
+readiness_started=$MONOTONIC_SECONDS
+readiness_deadline=$((readiness_started + READINESS_TIMEOUT))
+last_diagnostic=$((readiness_started - READINESS_DIAGNOSTIC_INTERVAL))
+while :; do
+	read_monotonic_seconds
+	((MONOTONIC_SECONDS < readiness_deadline)) || break
 	if ! kill -0 "$APP_PID" 2>/dev/null; then
 		wait_for_child
 		echo "MESHRIK exited before becoming ready (status ${CHILD_STATUS})." >&2
@@ -331,18 +368,35 @@ for ((attempt = 1; attempt <= READINESS_ATTEMPTS; attempt++)); do
 		exit "$CHILD_STATUS"
 	fi
 
-	if api_request --retry 0 --max-time 2 --output /dev/null \
-		"${API_BASE}/api/health" 2>/dev/null; then
+	probe_status=0
+	api_request --retry 0 --max-time 2 --output /dev/null \
+		"${API_BASE}/api/health" 2>/dev/null || probe_status=$?
+	if [ "$probe_status" -eq 0 ]; then
 		READY=true
 		echo "MESHRIK HTTP API is responding; radio startup may still be initializing."
 		break
 	fi
 
-	[ "$attempt" -eq "$READINESS_ATTEMPTS" ] || sleep "$READINESS_INTERVAL"
+	read_monotonic_seconds
+	if ((MONOTONIC_SECONDS - last_diagnostic >= READINESS_DIAGNOSTIC_INTERVAL)); then
+		elapsed=$((MONOTONIC_SECONDS - readiness_started))
+		case "$probe_status" in
+		7 | 28)
+			echo "MESHRIK HTTP endpoint is not bound yet after ${elapsed}s; application startup may still be importing." >&2
+			;;
+		*)
+			echo "MESHRIK HTTP health probe is not healthy after ${elapsed}s (curl status ${probe_status})." >&2
+			;;
+		esac
+		last_diagnostic=$MONOTONIC_SECONDS
+	fi
+
+	((MONOTONIC_SECONDS < readiness_deadline)) || break
+	sleep "$READINESS_INTERVAL"
 done
 
 if [ "$READY" != true ]; then
-	echo "MESHRIK did not become ready after ${READINESS_ATTEMPTS} attempts." >&2
+	echo "MESHRIK HTTP API did not become ready within ${READINESS_TIMEOUT}s; stopping the application." >&2
 	kill -TERM "$APP_PID" 2>/dev/null || true
 	wait "$APP_PID" 2>/dev/null || true
 	exit 1

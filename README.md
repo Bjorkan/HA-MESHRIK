@@ -97,6 +97,12 @@ for the exact opt-in list and rollback guidance.
 
 When the Mosquitto broker app is available, the wrapper asks the Supervisor for its connection details and creates an `mqtt_ha` fanout. A bounded background helper retries temporary Supervisor and application API failures without delaying or restarting the radio process. Existing fanout settings are never overwritten, and a successful concurrent setup is detected before another POST is attempted. MESHRIK continues to work when Mosquitto is absent.
 
+Both channels launch the image's preinstalled Python environment directly, without a runtime `uv`
+dependency sync. A configurable monotonic HTTP-readiness budget (120 seconds by default)
+accommodates slow cold imports while still failing boundedly when the server crashes or never
+binds. HTTP readiness does not require a radio connection, and startup recovery never requires
+deleting the database or resetting radio configuration, channel slots, or keys.
+
 The Supervisor bearer token is kept in the launcher and explicitly removed from the MESHRIK
 application environment. User-authored bots cannot obtain it from `os.environ`; bots still run as
 trusted MESHRIK code with access to the radio, database, and writable app/shared storage.

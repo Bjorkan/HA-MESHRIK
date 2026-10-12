@@ -56,6 +56,7 @@ Configure exactly one connection method:
 | `startup_enable_telemetry_collection` | `false`  | Full only: additional telemetry polling.                                                                      |
 | `auto_reboot_on_clock_skew`           | `false`  | Explicit opt-in for a device reboot when clock repair requires it.                                            |
 | `login_response_timeout_seconds`      | `5`      | Wait 1–60 s for an RF login response; independent of transport deadline.                                      |
+| `http_startup_timeout_seconds`        | `120`    | Wait 30–600 s for the HTTP API during cold startup; independent of radio readiness.                           |
 
 The app now schedules connection bootstrap/reconnect through one worker and exposes distinct
 `connecting`, `initializing`, `ready`, `degraded`, and `failed` states. A healthy HTTP response is
@@ -66,6 +67,22 @@ maintenance opt-in is enabled automatically. When switching modes, the deprecate
 **Warning:** enabling channel clearing or periodic offload can remove device-resident content.
 Back up your radio and MESHRIK data before switching them on; destructive actions must never
 be used as part of passive startup smoke testing.
+
+## Application startup and readiness
+
+The wrapper starts Uvicorn with the Python environment installed in the image. It does not run
+`uv sync` or download development/test packages during startup, so app startup does not depend on
+package-index or `uv` cache availability.
+
+The wrapper allows up to `http_startup_timeout_seconds` (120 seconds by default) for `/api/health`
+to respond. It reports whether the process exited, the HTTP endpoint is not bound yet, or the
+endpoint returned an unhealthy response. This budget covers slower cold imports on busy and ARM
+hosts; a genuine crash still exits immediately, and a timeout stops and reaps the application
+process before Supervisor restarts the app.
+
+HTTP readiness is intentionally independent of radio readiness. An unreachable or disconnected
+radio should leave the UI and API available while the health response reports its actual radio
+state. Do not reset the database, radio, channel slots, or keys to troubleshoot HTTP startup.
 
 ## MQTT and persistence
 

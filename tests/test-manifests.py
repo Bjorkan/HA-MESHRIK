@@ -37,6 +37,8 @@ for directory, slug, package in (
     assert config['version'] == lock['wrapper_version']
     assert config['options'].keys() == config['schema'].keys()
     assert config['options']['skip_post_connect_sync'] is False
+    assert config['options']['http_startup_timeout_seconds'] == 120
+    assert config['schema']['http_startup_timeout_seconds'] == 'int(30,600)'
     for key, (value, schema) in EXPECTED.items():
         assert config['options'][key] == value, (directory, key)
         assert config['schema'][key] == schema, (directory, key)

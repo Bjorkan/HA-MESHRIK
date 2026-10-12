@@ -51,6 +51,7 @@ options:
   startup_enable_telemetry_collection: false
   auto_reboot_on_clock_skew: false
   login_response_timeout_seconds: 5
+  http_startup_timeout_seconds: 120
 schema:
   serial_port: str?
   serial_baudrate: int
@@ -78,3 +79,4 @@ schema:
   startup_enable_telemetry_collection: bool
   auto_reboot_on_clock_skew: bool
   login_response_timeout_seconds: int
+  http_startup_timeout_seconds: int(30,600)

@@ -32,6 +32,12 @@ assert_no_file() {
 	[ ! -e "$1" ] || fail "unexpected file $1"
 }
 
+assert_pid_stopped() {
+	local pid
+	read -r pid <"$1"
+	! kill -0 "$pid" 2>/dev/null || fail "process $pid is still running"
+}
+
 wait_for_file() {
 	local file=$1
 	local pid=$2
@@ -80,6 +86,7 @@ make_fake_tools() {
 	local directory=$1
 	mkdir -p "$directory"
 
+	apply_python="$directory/python"
 	apply_uv="$directory/uv"
 	apply_curl="$directory/curl"
 
@@ -88,13 +95,24 @@ make_fake_tools() {
 	printf '%s\n' \
 		'#!/bin/bash' \
 		'set -euo pipefail' \
-		'if [ "${FAKE_UV_MODE:-serve}" = exit ]; then exit "${FAKE_UV_STATUS:-23}"; fi' \
-		'trap '\''printf terminated > "${UV_TERM_FILE}"; exit 0'\'' TERM INT' \
-		'printf started > "${UV_STARTED_FILE}"' \
+		'printf invoked > "${UV_INVOKED_FILE}"' \
+		'exit 99' \
+		>"$apply_uv"
+
+	# This stands in for the image's already-populated /app/.venv/bin/python.
+	# shellcheck disable=SC2016
+	printf '%s\n' \
+		'#!/bin/bash' \
+		'set -euo pipefail' \
+		'printf "%s\n" "$*" > "${PYTHON_ARGS_FILE}"' \
+		'printf "%s\n" "$$" > "${PYTHON_PID_FILE}"' \
+		'if [ "${FAKE_PYTHON_MODE:-serve}" = exit ]; then exit "${FAKE_PYTHON_STATUS:-23}"; fi' \
+		'trap '\''printf terminated > "${PYTHON_TERM_FILE}"; exit 0'\'' TERM INT' \
+		'printf started > "${PYTHON_STARTED_FILE}"' \
 		'if [ -n "${CHILD_ENV_FILE:-}" ]; then env | sort > "${CHILD_ENV_FILE}"; fi' \
 		'if [ -n "${STARTUP_ENV_FILE:-}" ]; then env | grep -E "^MESHCORE_(STARTUP_|PASSIVE_STARTUP|SKIP_POST_CONNECT_SYNC|LOGIN_RESPONSE_TIMEOUT_SECONDS|AUTO_REBOOT_ON_CLOCK_SKEW)" | sort > "${STARTUP_ENV_FILE}"; fi' \
 		'while :; do sleep 1; done' \
-		>"$apply_uv"
+		>"$apply_python"
 
 	# The generated scripts must expand these variables when they run.
 	# shellcheck disable=SC2016
@@ -121,7 +139,10 @@ make_fake_tools() {
 		'  case "$url" in' \
 		'    */api/health)' \
 		'      touch "${HEALTH_FILE}"' \
-		'      [ "${HEALTH_MODE:-ok}" = ok ] || exit 22' \
+		'      count=$(increment_counter "${HEALTH_COUNT_FILE}")' \
+		'      if [ -n "${FAKE_UPTIME_FILE:-}" ]; then printf "%s.00 0.00\n" "$((FAKE_UPTIME_START + count))" > "${FAKE_UPTIME_FILE}"; fi' \
+		'      if (( count <= ${HEALTH_FAILS:-0} )); then exit "${HEALTH_FAILURE_STATUS:-7}"; fi' \
+		'      [ "${HEALTH_MODE:-ok}" = ok ] || exit "${HEALTH_FAILURE_STATUS:-22}"' \
 		'      printf '\''{"status":"ok"}\n'\''' \
 		'      ;;' \
 		'    */api/fanout)' \
@@ -152,7 +173,7 @@ make_fake_tools() {
 		'fi' \
 		>"$apply_curl"
 
-	chmod +x "$apply_uv" "$apply_curl"
+	chmod +x "$apply_python" "$apply_uv" "$apply_curl"
 }
 
 start_wrapper() {
@@ -163,10 +184,12 @@ start_wrapper() {
 		PATH="$case_dir/tools:$PATH" \
 		MESHRIK_HA_OPTIONS="$case_dir/options.json" \
 		MESHRIK_HA_APP_DIR="$case_dir" \
+		MESHRIK_HA_PYTHON_BIN="$case_dir/tools/python" \
 		MESHRIK_HA_API_BASE="http://meshrik.test:8000" \
 		MESHRIK_HA_MQTT_URL="http://supervisor.test/services/mqtt" \
-		MESHRIK_HA_READINESS_ATTEMPTS=3 \
+		MESHRIK_HA_READINESS_TIMEOUT=3 \
 		MESHRIK_HA_READINESS_INTERVAL=0 \
+		MESHRIK_HA_READINESS_DIAGNOSTIC_INTERVAL=1 \
 		MESHRIK_HA_MQTT_RETRY_ATTEMPTS=3 \
 		MESHRIK_HA_MQTT_RETRY_INTERVAL=0 \
 		MESHRIK_HA_MQTT_HELPER_STOP_FILE="$case_dir/mqtt-helper-stopped" \
@@ -174,6 +197,7 @@ start_wrapper() {
 		TEST_MQTT_URL="http://supervisor.test/services/mqtt" \
 		CURL_LOG="$case_dir/curl.log" \
 		HEALTH_FILE="$case_dir/health" \
+		HEALTH_COUNT_FILE="$case_dir/health-count" \
 		FANOUT_GET_FILE="$case_dir/fanout-get" \
 		POST_FILE="$case_dir/post.json" \
 		POST_COUNT_FILE="$case_dir/post-count" \
@@ -181,10 +205,13 @@ start_wrapper() {
 		FANOUT_STATE_FILE="$case_dir/fanout-state" \
 		SUPERVISOR_FILE="$case_dir/supervisor" \
 		SUPERVISOR_COUNT_FILE="$case_dir/supervisor-count" \
-		UV_STARTED_FILE="$case_dir/uv-started" \
+		PYTHON_STARTED_FILE="$case_dir/python-started" \
+		PYTHON_ARGS_FILE="$case_dir/python-args" \
+		PYTHON_PID_FILE="$case_dir/python-pid" \
 		CHILD_ENV_FILE="$case_dir/child-env" \
 		STARTUP_ENV_FILE="$case_dir/startup-env" \
-		UV_TERM_FILE="$case_dir/uv-terminated" \
+		PYTHON_TERM_FILE="$case_dir/python-terminated" \
+		UV_INVOKED_FILE="$case_dir/uv-invoked" \
 		"$@" \
 		bash "$script" >"$case_dir/output.log" 2>&1 &
 	WRAPPER_PID=$!
@@ -234,7 +261,10 @@ run_authenticated_tls_case() {
          .config.broker_port == 8883 and .config.use_tls == true and
          .config.username == $username and .config.password == $password' \
 		"$case_dir/post.json" >/dev/null
-	assert_file "$case_dir/uv-terminated"
+	assert_file "$case_dir/python-terminated"
+	assert_pid_stopped "$case_dir/python-pid"
+	assert_no_file "$case_dir/uv-invoked"
+	grep -Fxq -- '-m uvicorn app.main:app --host 0.0.0.0 --port 8000' "$case_dir/python-args"
 	assert_file "$case_dir/child-env"
 	! grep -Eq '^(SUPERVISOR_TOKEN|HASSIO_TOKEN)=' "$case_dir/child-env" ||
 		fail "Supervisor credential reached the application process"
@@ -331,7 +361,7 @@ run_mqtt_cancellation_case() {
 	wait_for_log 'retrying in 30s' "$case_dir/output.log" "$WRAPPER_PID"
 	stop_wrapper "$WRAPPER_PID"
 	assert_file "$case_dir/mqtt-helper-stopped"
-	assert_file "$case_dir/uv-terminated"
+	assert_file "$case_dir/python-terminated"
 }
 
 run_child_exit_case() {
@@ -344,15 +374,20 @@ run_child_exit_case() {
 		PATH="$case_dir/tools:$PATH" \
 		MESHRIK_HA_OPTIONS="$case_dir/options.json" \
 		MESHRIK_HA_APP_DIR="$case_dir" \
+		MESHRIK_HA_PYTHON_BIN="$case_dir/tools/python" \
 		MESHRIK_HA_API_BASE="http://meshrik.test:8000" \
-		MESHRIK_HA_READINESS_ATTEMPTS=3 \
+		MESHRIK_HA_READINESS_TIMEOUT=3 \
 		MESHRIK_HA_READINESS_INTERVAL=0 \
+		MESHRIK_HA_READINESS_DIAGNOSTIC_INTERVAL=1 \
 		TEST_API_BASE="http://meshrik.test:8000" \
 		TEST_MQTT_URL="http://supervisor.test/services/mqtt" \
 		CURL_LOG="$case_dir/curl.log" HEALTH_FILE="$case_dir/health" \
+		HEALTH_COUNT_FILE="$case_dir/health-count" \
 		FANOUT_GET_FILE="$case_dir/fanout-get" POST_FILE="$case_dir/post.json" \
-		SUPERVISOR_FILE="$case_dir/supervisor" UV_STARTED_FILE="$case_dir/uv-started" \
-		UV_TERM_FILE="$case_dir/uv-terminated" FAKE_UV_MODE=exit FAKE_UV_STATUS=23 \
+		SUPERVISOR_FILE="$case_dir/supervisor" PYTHON_STARTED_FILE="$case_dir/python-started" \
+		PYTHON_ARGS_FILE="$case_dir/python-args" PYTHON_PID_FILE="$case_dir/python-pid" \
+		PYTHON_TERM_FILE="$case_dir/python-terminated" UV_INVOKED_FILE="$case_dir/uv-invoked" \
+		FAKE_PYTHON_MODE=exit FAKE_PYTHON_STATUS=23 \
 		HEALTH_MODE=fail \
 		bash "$ROOT/meshrik-dev/run.sh" >"$case_dir/output.log" 2>&1; then
 		status=0
@@ -373,23 +408,71 @@ run_readiness_timeout_case() {
 		PATH="$case_dir/tools:$PATH" \
 		MESHRIK_HA_OPTIONS="$case_dir/options.json" \
 		MESHRIK_HA_APP_DIR="$case_dir" \
+		MESHRIK_HA_PYTHON_BIN="$case_dir/tools/python" \
 		MESHRIK_HA_API_BASE="http://meshrik.test:8000" \
-		MESHRIK_HA_READINESS_ATTEMPTS=2 \
+		MESHRIK_HA_READINESS_TIMEOUT=1 \
 		MESHRIK_HA_READINESS_INTERVAL=0 \
+		MESHRIK_HA_READINESS_DIAGNOSTIC_INTERVAL=1 \
 		TEST_API_BASE="http://meshrik.test:8000" \
 		TEST_MQTT_URL="http://supervisor.test/services/mqtt" \
 		CURL_LOG="$case_dir/curl.log" HEALTH_FILE="$case_dir/health" \
+		HEALTH_COUNT_FILE="$case_dir/health-count" \
 		FANOUT_GET_FILE="$case_dir/fanout-get" POST_FILE="$case_dir/post.json" \
-		SUPERVISOR_FILE="$case_dir/supervisor" UV_STARTED_FILE="$case_dir/uv-started" \
-		UV_TERM_FILE="$case_dir/uv-terminated" HEALTH_MODE=fail \
+		SUPERVISOR_FILE="$case_dir/supervisor" PYTHON_STARTED_FILE="$case_dir/python-started" \
+		PYTHON_ARGS_FILE="$case_dir/python-args" PYTHON_PID_FILE="$case_dir/python-pid" \
+		PYTHON_TERM_FILE="$case_dir/python-terminated" UV_INVOKED_FILE="$case_dir/uv-invoked" \
+		HEALTH_MODE=fail HEALTH_FAILURE_STATUS=7 \
 		bash "$ROOT/meshrik/run.sh" >"$case_dir/output.log" 2>&1; then
 		status=0
 	else
 		status=$?
 	fi
 	[ "$status" -eq 1 ] || fail "readiness timeout status was $status"
-	assert_file "$case_dir/uv-terminated"
-	grep -Fq 'did not become ready after 2 attempts' "$case_dir/output.log"
+	assert_file "$case_dir/python-terminated"
+	assert_pid_stopped "$case_dir/python-pid"
+	assert_no_file "$case_dir/uv-invoked"
+	grep -Fq 'HTTP endpoint is not bound yet' "$case_dir/output.log"
+	grep -Fq 'did not become ready within 1s' "$case_dir/output.log"
+}
+
+run_delayed_readiness_case() {
+	local script=$1
+	local label=$2
+	local failure_status=$3
+	local diagnostic=$4
+	local case_dir="$TMP_ROOT/$label"
+	mkdir -p "$case_dir"
+	make_fake_tools "$case_dir/tools"
+	write_options "$case_dir/options.json"
+	printf '100.00 0.00\n' >"$case_dir/uptime"
+	start_wrapper "$script" "$case_dir" \
+		SUPERVISOR_TOKEN='' HEALTH_FAILS=35 HEALTH_FAILURE_STATUS="$failure_status" \
+		FAKE_UPTIME_FILE="$case_dir/uptime" FAKE_UPTIME_START=100 \
+		MESHRIK_HA_MONOTONIC_CLOCK_FILE="$case_dir/uptime" \
+		MESHRIK_HA_READINESS_TIMEOUT=120 UV_CACHE_DIR="$case_dir/cold-uv-cache"
+	wait_for_log 'Supervisor token is absent' "$case_dir/output.log" "$WRAPPER_PID"
+	stop_wrapper "$WRAPPER_PID"
+	[ "$(<"$case_dir/health-count")" -ge 36 ] || fail "delayed startup did not exceed 30 seconds"
+	assert_no_file "$case_dir/uv-invoked"
+	assert_file "$case_dir/python-terminated"
+	assert_pid_stopped "$case_dir/python-pid"
+	grep -Fxq -- '-m uvicorn app.main:app --host 0.0.0.0 --port 8000' "$case_dir/python-args"
+	grep -Fq "$diagnostic" "$case_dir/output.log"
+	grep -Fq 'HTTP API is responding; radio startup may still be initializing' "$case_dir/output.log"
+}
+
+run_configured_timeout_case() {
+	local case_dir="$TMP_ROOT/configured-timeout"
+	mkdir -p "$case_dir"
+	make_fake_tools "$case_dir/tools"
+	write_options "$case_dir/options.json"
+	jq '.http_startup_timeout_seconds=45' "$case_dir/options.json" >"$case_dir/new"
+	mv "$case_dir/new" "$case_dir/options.json"
+	start_wrapper "$ROOT/meshrik/run.sh" "$case_dir" \
+		SUPERVISOR_TOKEN='' MESHRIK_HA_READINESS_TIMEOUT=
+	wait_for_log 'Waiting up to 45s' "$case_dir/output.log" "$WRAPPER_PID"
+	stop_wrapper "$WRAPPER_PID"
+	assert_no_file "$case_dir/uv-invoked"
 }
 
 # Validate policy propagation without a radio or real MQTT service.
@@ -457,6 +540,9 @@ run_mqtt_race_case
 run_mqtt_cancellation_case
 run_child_exit_case
 run_readiness_timeout_case
+run_delayed_readiness_case "$ROOT/meshrik/run.sh" delayed-stable 7 'HTTP endpoint is not bound yet'
+run_delayed_readiness_case "$ROOT/meshrik-dev/run.sh" delayed-edge 22 'HTTP health probe is not healthy'
+run_configured_timeout_case
 run_startup_policy_cases
 
 echo "All startup wrapper tests passed."

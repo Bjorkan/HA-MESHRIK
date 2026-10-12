@@ -8,6 +8,13 @@ MESHRIK is a fork of [RemoteTerm for MeshCore](https://github.com/jkingsman/Remo
 
 Configuration, MQTT bootstrap, ingress, radio connection methods, and security guidance match the stable app, including the `passive`/`sync`/`full` startup policies and individual opt-ins. `sync` is read-only with respect to the radio; `full` alone never authorizes writes, advertising or deletion. The `startup_clear_channel_slots` and `startup_allow_periodic_offload` options can remove device data and must remain off unless deliberately authorized. MQTT bootstrap honors the Supervisor broker's TLS setting and preserves an existing `mqtt_ha` fanout. A bounded background helper retries temporary Supervisor, broker-service, and MESHRIK API failures without delaying or restarting the radio process; missing MQTT remains optional. Update an existing fanout in the MESHRIK UI, or delete it and restart, when Supervisor broker credentials or settings change. This app uses the `meshrik-dev` slug and therefore has storage separate from the stable app. A legacy `remoteterm-dev` installation is a different app and its data is not migrated automatically.
 
+Startup uses the preinstalled image environment and never runs `uv sync` or downloads development
+tools. The wrapper gives the HTTP API a configurable 30–600-second monotonic startup budget (120
+seconds by default), reports bounded readiness diagnostics, and terminates the application cleanly
+after a crash or timeout. HTTP readiness does not wait for a radio connection: a disconnected radio
+should leave the UI available with truthful radio status. Never reset the database, radio, channel
+slots, or keys to repair HTTP startup.
+
 The launcher's Home Assistant Supervisor token is used only for MQTT service discovery and is
 removed from the MESHRIK child environment, so bots cannot retrieve it from `os.environ`. Bots
 remain trusted code with MESHRIK's own radio, database, `/data`, and `/share` capabilities. Disable

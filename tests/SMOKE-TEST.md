@@ -152,6 +152,13 @@ before declaring either channel ready.
 - [ ] Legacy `skip_post_connect_sync=true` or `passive_startup=true` forces effective passive policy
 - [ ] Lifecycle readiness (`initializing` vs `ready`/`degraded`) visible in `/api/health`
 - [ ] Confirm app's MQTT bootstrap remains one-time and does not overwrite existing fanouts
+- [ ] Stable and edge start with an empty `uv` cache and restricted network without downloading dev tools
+- [ ] A synthetic HTTP bind delayed beyond 30 seconds but under the configured budget starts without a Supervisor restart
+- [ ] A crashed process exits immediately with its status; a server that never binds stops at the configured timeout
+- [ ] Readiness logs distinguish process exit, endpoint-not-bound, and unhealthy HTTP response
+- [ ] SIGTERM and readiness timeout leave no Uvicorn child, port-8000 listener, radio owner, or MQTT helper
+- [ ] Basic-authenticated readiness succeeds while the radio is unreachable and the UI reports disconnected/degraded
+- [ ] Repeat the cold-start and shutdown checks on both `amd64` and `aarch64`
 
 ## 13. Release Channel Integrity
 
