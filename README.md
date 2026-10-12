@@ -18,10 +18,10 @@ The apps use the internal slugs `meshrik` and `meshrik-dev`. These distinct iden
 
 ## Release channels
 
-| App | Source channel | Intended use |
-| --- | --- | --- |
-| [MESHRIK](meshrik/) | `ghcr.io/bjorkan/meshrik:latest`, updated only for published stable MESHRIK releases | Normal use |
-| [MESHRIK - Bleeding Edge](meshrik-dev/) | `ghcr.io/bjorkan/meshrik:edge`, updated after successful builds from `main` | Testing; may be unstable or broken |
+| App                                     | Source channel                                                                       | Intended use                       |
+| --------------------------------------- | ------------------------------------------------------------------------------------ | ---------------------------------- |
+| [MESHRIK](meshrik/)                     | `ghcr.io/bjorkan/meshrik:latest`, updated only for published stable MESHRIK releases | Normal use                         |
+| [MESHRIK - Bleeding Edge](meshrik-dev/) | `ghcr.io/bjorkan/meshrik:edge`, updated after successful builds from `main`          | Testing; may be unstable or broken |
 
 Both entries can be installed side by side. Their slugs, wrapper images, versions, and storage are independent.
 
@@ -29,7 +29,7 @@ Both entries can be installed side by side. Their slugs, wrapper images, version
 `meshrik/` and `meshrik-dev/` rather than the original `remoteterm/` folders. The Home Assistant
 slugs remain `meshrik` and `meshrik-dev`; those were already the declared slugs in previous releases.
 The wrapper image packages have also moved from `remoteterm-app*` to `meshrik-app*`.
-The historical `source-lock.json` files intentionally retain the *last actually published* image
+The historical `source-lock.json` files intentionally retain the _last actually published_ image
 name and digest until each new wrapper has been built and verified. **Do not assume the new image
 names are available before the stable and edge publish workflows succeed.** The resolver detects
 a wrapper package rename and forces a fresh publish even when the upstream source digest has not
@@ -41,7 +41,6 @@ the Bleeding Edge wrapper follows an actual, successfully published upstream `:e
 unpublished local main commit (including `7c482a3` at the time this wrapper was prepared) cannot
 be represented by a made-up image digest. The source locks reflect currently published images and
 are advanced only after an independently verified image build.
-
 
 Wrapper images are published as lowercase, independent GHCR packages:
 
@@ -72,11 +71,11 @@ Both Home Assistant apps expose the new `startup_policy` option. Its default is 
 reads device information plus contact and channel snapshots into the application database without
 writing radio configuration, deleting device data, or transmitting advertisements.
 
-| Mode | Automatic startup operations |
-| --- | --- |
-| `passive` | Read device information, receive packets; no startup radio writes |
-| `sync` | Passive operations plus non-destructive contact/channel read-only snapshots |
-| `full` | Sync plus **only explicitly enabled** individual maintenance options |
+| Mode      | Automatic startup operations                                                |
+| --------- | --------------------------------------------------------------------------- |
+| `passive` | Read device information, receive packets; no startup radio writes           |
+| `sync`    | Passive operations plus non-destructive contact/channel read-only snapshots |
+| `full`    | Sync plus **only explicitly enabled** individual maintenance options        |
 
 All `startup_*` action toggles default to `false`, including key export, time sync, flood-scope
 changes, advertising, message draining, contact reconciliation, physical channel clearing and

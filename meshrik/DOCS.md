@@ -28,34 +28,34 @@ Configure exactly one connection method:
 
 ## Options
 
-| Option | Default | Description |
-| --- | --- | --- |
-| `serial_port` | auto | Serial device path; empty enables auto-detection. |
-| `serial_baudrate` | `115200` | Serial baud rate. |
-| `tcp_host` | none | Network radio host. |
-| `tcp_port` | `5000` | Network radio port. |
-| `ble_address` | none | BLE device address. |
-| `ble_pin` | none | BLE PIN, required with `ble_address`. |
-| `log_level` | `INFO` | `DEBUG`, `INFO`, `WARNING`, or `ERROR`. |
-| `disable_bots` | `false` | Disable the Python bot system. |
-| `basic_auth_username` | none | HTTP Basic Auth username. |
-| `basic_auth_password` | none | HTTP Basic Auth password; set both credentials together. |
-| `enable_message_poll_fallback` | `false` | Enable fallback message polling. |
-| `force_channel_slot_reconfigure` | `false` | Force channel-slot reconfiguration on connect. |
-| `skip_post_connect_sync` | `false` | **Deprecated.** Forces `passive` regardless of `startup_policy`. |
-| `passive_startup` | `false` | **Deprecated.** Also forces `passive` regardless of `startup_policy`. |
-| `startup_policy` | `sync` | `passive` (read metadata), `sync` (read-only contact/channel snapshots) or `full` (only enabled maintenance). |
-| `startup_export_private_key` | `false` | Full only: export sensitive private key material into app storage. |
-| `startup_sync_clock` | `false` | Full only: write device clock. |
-| `startup_apply_flood_scope` | `false` | Full only: write configured flood scope. |
-| `startup_send_advertisement` | `false` | Full only: allow startup/periodic RF advertisements. |
-| `startup_drain_messages` | `false` | Full only: drain pending device messages (potential offload). |
-| `startup_reconcile_contacts` | `false` | Full only: application/contact maintenance. |
-| `startup_clear_channel_slots` | `false` | Full only: **destructive** device channel slot clearing. |
-| `startup_allow_periodic_offload` | `false` | Full only: **destructive** recurring contact/channel offload. |
-| `startup_enable_telemetry_collection` | `false` | Full only: additional telemetry polling. |
-| `auto_reboot_on_clock_skew` | `false` | Explicit opt-in for a device reboot when clock repair requires it. |
-| `login_response_timeout_seconds` | `5` | Wait 1–60 s for an RF login response; independent of transport deadline. |
+| Option                                | Default  | Description                                                                                                   |
+| ------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------- |
+| `serial_port`                         | auto     | Serial device path; empty enables auto-detection.                                                             |
+| `serial_baudrate`                     | `115200` | Serial baud rate.                                                                                             |
+| `tcp_host`                            | none     | Network radio host.                                                                                           |
+| `tcp_port`                            | `5000`   | Network radio port.                                                                                           |
+| `ble_address`                         | none     | BLE device address.                                                                                           |
+| `ble_pin`                             | none     | BLE PIN, required with `ble_address`.                                                                         |
+| `log_level`                           | `INFO`   | `DEBUG`, `INFO`, `WARNING`, or `ERROR`.                                                                       |
+| `disable_bots`                        | `false`  | Disable the Python bot system.                                                                                |
+| `basic_auth_username`                 | none     | HTTP Basic Auth username.                                                                                     |
+| `basic_auth_password`                 | none     | HTTP Basic Auth password; set both credentials together.                                                      |
+| `enable_message_poll_fallback`        | `false`  | Enable fallback message polling.                                                                              |
+| `force_channel_slot_reconfigure`      | `false`  | Force channel-slot reconfiguration on connect.                                                                |
+| `skip_post_connect_sync`              | `false`  | **Deprecated.** Forces `passive` regardless of `startup_policy`.                                              |
+| `passive_startup`                     | `false`  | **Deprecated.** Also forces `passive` regardless of `startup_policy`.                                         |
+| `startup_policy`                      | `sync`   | `passive` (read metadata), `sync` (read-only contact/channel snapshots) or `full` (only enabled maintenance). |
+| `startup_export_private_key`          | `false`  | Full only: export sensitive private key material into app storage.                                            |
+| `startup_sync_clock`                  | `false`  | Full only: write device clock.                                                                                |
+| `startup_apply_flood_scope`           | `false`  | Full only: write configured flood scope.                                                                      |
+| `startup_send_advertisement`          | `false`  | Full only: allow startup/periodic RF advertisements.                                                          |
+| `startup_drain_messages`              | `false`  | Full only: drain pending device messages (potential offload).                                                 |
+| `startup_reconcile_contacts`          | `false`  | Full only: application/contact maintenance.                                                                   |
+| `startup_clear_channel_slots`         | `false`  | Full only: **destructive** device channel slot clearing.                                                      |
+| `startup_allow_periodic_offload`      | `false`  | Full only: **destructive** recurring contact/channel offload.                                                 |
+| `startup_enable_telemetry_collection` | `false`  | Full only: additional telemetry polling.                                                                      |
+| `auto_reboot_on_clock_skew`           | `false`  | Explicit opt-in for a device reboot when clock repair requires it.                                            |
+| `login_response_timeout_seconds`      | `5`      | Wait 1–60 s for an RF login response; independent of transport deadline.                                      |
 
 The app now schedules connection bootstrap/reconnect through one worker and exposes distinct
 `connecting`, `initializing`, `ready`, `degraded`, and `failed` states. A healthy HTTP response is

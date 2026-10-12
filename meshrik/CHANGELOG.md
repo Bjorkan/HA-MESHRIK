@@ -5,12 +5,10 @@
 - Package [MESHRIK 3.17.1](https://github.com/Bjorkan/MESHRIK/releases/tag/v3.17.1) from commit `d08bb1113f08928e16585f9f0d5d84aeae6df2e4`.
 - Pin source image digest `sha256:1a609379c6eeb2b6a53d027b933ff2d2754797a318683f6a16c9dc0b2bf2a353`.
 
-
 ## 3.17.1.3
 
 - Package [MESHRIK 3.17.1](https://github.com/Bjorkan/MESHRIK/releases/tag/v3.17.1) from commit `d08bb1113f08928e16585f9f0d5d84aeae6df2e4`.
 - Pin source image digest `sha256:1a609379c6eeb2b6a53d027b933ff2d2754797a318683f6a16c9dc0b2bf2a353`.
-
 
 ## 3.17.1
 
@@ -21,96 +19,80 @@
 - Wrap the stable `ghcr.io/bjorkan/meshrik:latest` image, with support for digest pinning in CI.
 - Publish the multi-architecture HA wrapper at the lowercase, versioned `ghcr.io/bjorkan/ha-meshrik/remoteterm-app` package with required HA image labels.
 
-
 ## 3.16.2
 
 - Track upstream RemoteTerm for MeshCore 3.16.2
 - See upstream [CHANGELOG](https://github.com/jkingsman/Remote-Terminal-for-MeshCore/blob/main/CHANGELOG.md) for details
-
 
 ## 3.16.0
 
 - Track upstream RemoteTerm for MeshCore 3.16.0
 - See upstream [CHANGELOG](https://github.com/jkingsman/Remote-Terminal-for-MeshCore/blob/main/CHANGELOG.md) for details
 
-
 ## 3.15.2
 
 - Track upstream RemoteTerm for MeshCore 3.15.2
 - See upstream [CHANGELOG](https://github.com/jkingsman/Remote-Terminal-for-MeshCore/blob/main/CHANGELOG.md) for details
-
 
 ## 3.15.0
 
 - Track upstream RemoteTerm for MeshCore 3.15.0
 - See upstream [CHANGELOG](https://github.com/jkingsman/Remote-Terminal-for-MeshCore/blob/main/CHANGELOG.md) for details
 
-
 ## 3.14.1
 
 - Track upstream RemoteTerm for MeshCore 3.14.1
 - See upstream [CHANGELOG](https://github.com/jkingsman/Remote-Terminal-for-MeshCore/blob/main/CHANGELOG.md) for details
-
 
 ## 3.14.0
 
 - Track upstream RemoteTerm for MeshCore 3.14.0
 - See upstream [CHANGELOG](https://github.com/jkingsman/Remote-Terminal-for-MeshCore/blob/main/CHANGELOG.md) for details
 
-
 ## 3.13.0
 
 - Track upstream RemoteTerm for MeshCore 3.13.0
 - See upstream [CHANGELOG](https://github.com/jkingsman/Remote-Terminal-for-MeshCore/blob/main/CHANGELOG.md) for details
-
 
 ## 3.12.3
 
 - Track upstream RemoteTerm for MeshCore 3.12.3
 - See upstream [CHANGELOG](https://github.com/jkingsman/Remote-Terminal-for-MeshCore/blob/main/CHANGELOG.md) for details
 
-
 ## 3.12.2
 
 - Track upstream RemoteTerm for MeshCore 3.12.2
 - See upstream [CHANGELOG](https://github.com/jkingsman/Remote-Terminal-for-MeshCore/blob/main/CHANGELOG.md) for details
-
 
 ## 3.12.1
 
 - Track upstream RemoteTerm for MeshCore 3.12.1
 - See upstream [CHANGELOG](https://github.com/jkingsman/Remote-Terminal-for-MeshCore/blob/main/CHANGELOG.md) for details
 
-
 ## 3.12.0
 
 - Track upstream RemoteTerm for MeshCore 3.12.0
 - See upstream [CHANGELOG](https://github.com/jkingsman/Remote-Terminal-for-MeshCore/blob/main/CHANGELOG.md) for details
-
 
 ## 3.11.3
 
 - Track upstream RemoteTerm for MeshCore 3.11.3
 - See upstream [CHANGELOG](https://github.com/jkingsman/Remote-Terminal-for-MeshCore/blob/main/CHANGELOG.md) for details
 
-
 ## 3.11.1
 
 - Track upstream RemoteTerm for MeshCore 3.11.1
 - See upstream [CHANGELOG](https://github.com/jkingsman/Remote-Terminal-for-MeshCore/blob/main/CHANGELOG.md) for details
-
 
 ## 3.11.0
 
 - Track upstream RemoteTerm for MeshCore 3.11.0
 - See upstream [CHANGELOG](https://github.com/jkingsman/Remote-Terminal-for-MeshCore/blob/main/CHANGELOG.md) for details
 
-
 ## 3.9.0
 
 - Track upstream RemoteTerm for MeshCore 3.9.0
 - See upstream [CHANGELOG](https://github.com/jkingsman/Remote-Terminal-for-MeshCore/blob/main/CHANGELOG.md) for details
-
 
 ## 3.8.0
 

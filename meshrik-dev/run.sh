@@ -22,34 +22,34 @@ CHILD_STATUS=0
 # Invoked by the EXIT trap.
 # shellcheck disable=SC2317,SC2329
 cleanup() {
-    [ -z "$AUTH_HEADER_FILE" ] || rm -f -- "$AUTH_HEADER_FILE"
-    [ -z "$SUPERVISOR_HEADER_FILE" ] || rm -f -- "$SUPERVISOR_HEADER_FILE"
+	[ -z "$AUTH_HEADER_FILE" ] || rm -f -- "$AUTH_HEADER_FILE"
+	[ -z "$SUPERVISOR_HEADER_FILE" ] || rm -f -- "$SUPERVISOR_HEADER_FILE"
 }
 trap cleanup EXIT
 
 make_private_header_file() {
-    local header=$1
-    local file
-    file=$(mktemp /tmp/meshrik-header.XXXXXX)
-    chmod 600 "$file"
-    printf '%s\n' "$header" > "$file"
-    printf '%s\n' "$file"
+	local header=$1
+	local file
+	file=$(mktemp /tmp/meshrik-header.XXXXXX)
+	chmod 600 "$file"
+	printf '%s\n' "$header" >"$file"
+	printf '%s\n' "$file"
 }
 
 get_str() {
-    jq -er --arg key "$1" '.[$key] // empty | select(type == "string")' "$OPTIONS" \
-        2>/dev/null || true
+	jq -er --arg key "$1" '.[$key] // empty | select(type == "string")' "$OPTIONS" \
+		2>/dev/null || true
 }
 
 get_val() {
-    jq -r --arg key "$1" \
-        'if .[$key] != null then .[$key] else error("missing option: \($key)") end' \
-        "$OPTIONS"
+	jq -r --arg key "$1" \
+		'if .[$key] != null then .[$key] else error("missing option: \($key)") end' \
+		"$OPTIONS"
 }
 
 jq -e 'type == "object"' "$OPTIONS" >/dev/null || {
-    echo "Invalid Home Assistant options JSON." >&2
-    exit 1
+	echo "Invalid Home Assistant options JSON." >&2
+	exit 1
 }
 
 # Export only non-empty connection values so MESHRIK can auto-detect serial
@@ -83,8 +83,11 @@ export MESHCORE_SKIP_POST_CONNECT_SYNC
 # startup_policy=full to passive, as enforced by the MESHRIK settings model.
 startup_policy=$(jq -r '.startup_policy // "sync"' "$OPTIONS")
 case "$startup_policy" in
-    passive|sync|full) export MESHCORE_STARTUP_POLICY="$startup_policy" ;;
-    *) echo "Invalid startup_policy (expected passive, sync or full)." >&2; exit 1 ;;
+passive | sync | full) export MESHCORE_STARTUP_POLICY="$startup_policy" ;;
+*)
+	echo "Invalid startup_policy (expected passive, sync or full)." >&2
+	exit 1
+	;;
 esac
 
 # All potentially modifying startup operations remain individually opt-in.
@@ -116,43 +119,43 @@ export MESHCORE_LOGIN_RESPONSE_TIMEOUT_SECONDS
 
 # Validate the bounded login wait before exporting to Pydantic settings.
 if ! [[ "$MESHCORE_LOGIN_RESPONSE_TIMEOUT_SECONDS" =~ ^[0-9]+$ ]] ||
-   (( MESHCORE_LOGIN_RESPONSE_TIMEOUT_SECONDS < 1 || MESHCORE_LOGIN_RESPONSE_TIMEOUT_SECONDS > 60 )); then
-    echo "login_response_timeout_seconds must be an integer in 1..60." >&2
-    exit 1
+	((MESHCORE_LOGIN_RESPONSE_TIMEOUT_SECONDS < 1 || MESHCORE_LOGIN_RESPONSE_TIMEOUT_SECONDS > 60)); then
+	echo "login_response_timeout_seconds must be an integer in 1..60." >&2
+	exit 1
 fi
 export MESHCORE_DATABASE_PATH="/data/meshcore.db"
 
 AUTH_USER=$(get_str basic_auth_username)
 AUTH_PASS=$(get_str basic_auth_password)
-if { [ -n "$AUTH_USER" ] && [ -z "$AUTH_PASS" ]; } || \
-   { [ -z "$AUTH_USER" ] && [ -n "$AUTH_PASS" ]; }; then
-    echo "Basic Auth username and password must either both be set or both be empty." >&2
-    exit 1
+if { [ -n "$AUTH_USER" ] && [ -z "$AUTH_PASS" ]; } ||
+	{ [ -z "$AUTH_USER" ] && [ -n "$AUTH_PASS" ]; }; then
+	echo "Basic Auth username and password must either both be set or both be empty." >&2
+	exit 1
 fi
 
 if [ -n "$AUTH_USER" ]; then
-    export MESHCORE_BASIC_AUTH_USERNAME="$AUTH_USER"
-    export MESHCORE_BASIC_AUTH_PASSWORD="$AUTH_PASS"
-    auth_value=$(printf '%s:%s' "$AUTH_USER" "$AUTH_PASS" | base64 | tr -d '\n')
-    AUTH_HEADER_FILE=$(make_private_header_file "Authorization: Basic ${auth_value}")
-    unset auth_value
+	export MESHCORE_BASIC_AUTH_USERNAME="$AUTH_USER"
+	export MESHCORE_BASIC_AUTH_PASSWORD="$AUTH_PASS"
+	auth_value=$(printf '%s:%s' "$AUTH_USER" "$AUTH_PASS" | base64 | tr -d '\n')
+	AUTH_HEADER_FILE=$(make_private_header_file "Authorization: Basic ${auth_value}")
+	unset auth_value
 fi
 
 CURL_COMMON=(
-    --silent
-    --show-error
-    --fail
-    --connect-timeout 2
-    --max-time 5
-    --retry 2
-    --retry-delay 1
-    --retry-connrefused
+	--silent
+	--show-error
+	--fail
+	--connect-timeout 2
+	--max-time 5
+	--retry 2
+	--retry-delay 1
+	--retry-connrefused
 )
 
 api_request() {
-    local auth_args=()
-    [ -z "$AUTH_HEADER_FILE" ] || auth_args=(--header "@${AUTH_HEADER_FILE}")
-    "$CURL_BIN" "${CURL_COMMON[@]}" "${auth_args[@]}" "$@"
+	local auth_args=()
+	[ -z "$AUTH_HEADER_FILE" ] || auth_args=(--header "@${AUTH_HEADER_FILE}")
+	"$CURL_BIN" "${CURL_COMMON[@]}" "${auth_args[@]}" "$@"
 }
 
 MQTT_HOST=""
@@ -162,19 +165,19 @@ MQTT_PASS=""
 MQTT_TLS="false"
 
 if ! [[ "$MQTT_RETRY_ATTEMPTS" =~ ^[1-9][0-9]*$ ]] ||
-   ! [[ "$MQTT_RETRY_INTERVAL" =~ ^[0-9]+$ ]]; then
-    echo "MQTT retry attempts must be positive and interval must be non-negative." >&2
-    exit 1
+	! [[ "$MQTT_RETRY_INTERVAL" =~ ^[0-9]+$ ]]; then
+	echo "MQTT retry attempts must be positive and interval must be non-negative." >&2
+	exit 1
 fi
 
 mqtt_service_discovery() {
-    local response
-    if ! response=$("$CURL_BIN" "${CURL_COMMON[@]}" \
-        --header "@${SUPERVISOR_HEADER_FILE}" "$SUPERVISOR_MQTT_URL" 2>/dev/null); then
-        echo "Supervisor MQTT service is unavailable (optional)." >&2
-        return 1
-    fi
-    if ! jq -e '
+	local response
+	if ! response=$("$CURL_BIN" "${CURL_COMMON[@]}" \
+		--header "@${SUPERVISOR_HEADER_FILE}" "$SUPERVISOR_MQTT_URL" 2>/dev/null); then
+		echo "Supervisor MQTT service is unavailable (optional)." >&2
+		return 1
+	fi
+	if ! jq -e '
         .result == "ok" and
         (.data | type == "object") and
         (.data.host | type == "string" and length > 0) and
@@ -183,129 +186,129 @@ mqtt_service_discovery() {
         (.data.password == null or (.data.password | type == "string")) and
         ((.data.ssl // .data.tls // false) | type == "boolean")
     ' <<<"$response" >/dev/null 2>&1; then
-        echo "Supervisor returned invalid MQTT service data." >&2
-        return 1
-    fi
-    MQTT_HOST=$(jq -r '.data.host' <<<"$response")
-    MQTT_PORT=$(jq -r '.data.port' <<<"$response")
-    MQTT_USER=$(jq -r '.data.username // ""' <<<"$response")
-    MQTT_PASS=$(jq -r '.data.password // ""' <<<"$response")
-    MQTT_TLS=$(jq -r '.data.ssl // .data.tls // false' <<<"$response")
+		echo "Supervisor returned invalid MQTT service data." >&2
+		return 1
+	fi
+	MQTT_HOST=$(jq -r '.data.host' <<<"$response")
+	MQTT_PORT=$(jq -r '.data.port' <<<"$response")
+	MQTT_USER=$(jq -r '.data.username // ""' <<<"$response")
+	MQTT_PASS=$(jq -r '.data.password // ""' <<<"$response")
+	MQTT_TLS=$(jq -r '.data.ssl // .data.tls // false' <<<"$response")
 }
 
 read_mqtt_fanout_count() {
-    local response=$1
-    MQTT_COUNT=$(jq -er '
+	local response=$1
+	MQTT_COUNT=$(jq -er '
         if type == "array" then
             [.[] | select(.type == "mqtt_ha")] | length
         else
             error("fanout response is not an array")
         end
     ' <<<"$response" 2>/dev/null) || {
-        echo "MESHRIK returned invalid fanout JSON." >&2
-        return 1
-    }
+		echo "MESHRIK returned invalid fanout JSON." >&2
+		return 1
+	}
 }
 
 reconcile_mqtt_fanout() {
-    local fanout_response mqtt_payload
-    mqtt_service_discovery || return 1
+	local fanout_response mqtt_payload
+	mqtt_service_discovery || return 1
 
-    if ! fanout_response=$(api_request "${API_BASE}/api/fanout" 2>/dev/null); then
-        echo "Could not read MESHRIK fanout settings." >&2
-        return 1
-    fi
-    read_mqtt_fanout_count "$fanout_response" || return 1
-    if [ "$MQTT_COUNT" -gt 0 ]; then
-        echo "mqtt_ha fanout already exists; preserving its current settings."
-        return 0
-    fi
+	if ! fanout_response=$(api_request "${API_BASE}/api/fanout" 2>/dev/null); then
+		echo "Could not read MESHRIK fanout settings." >&2
+		return 1
+	fi
+	read_mqtt_fanout_count "$fanout_response" || return 1
+	if [ "$MQTT_COUNT" -gt 0 ]; then
+		echo "mqtt_ha fanout already exists; preserving its current settings."
+		return 0
+	fi
 
-    mqtt_payload=$(jq -n \
-        --arg broker_host "$MQTT_HOST" \
-        --argjson broker_port "$MQTT_PORT" \
-        --arg username "$MQTT_USER" \
-        --arg password "$MQTT_PASS" \
-        --argjson use_tls "$MQTT_TLS" \
-        '{type: "mqtt_ha", name: "Home Assistant",
+	mqtt_payload=$(jq -n \
+		--arg broker_host "$MQTT_HOST" \
+		--argjson broker_port "$MQTT_PORT" \
+		--arg username "$MQTT_USER" \
+		--arg password "$MQTT_PASS" \
+		--argjson use_tls "$MQTT_TLS" \
+		'{type: "mqtt_ha", name: "Home Assistant",
           config: {broker_host: $broker_host, broker_port: $broker_port,
             username: $username, password: $password, use_tls: $use_tls},
           scope: {messages: "all", raw_packets: "none"}, enabled: true}')
 
-    echo "Configuring mqtt_ha fanout against ${MQTT_HOST}:${MQTT_PORT} (TLS: ${MQTT_TLS})..."
-    if printf '%s' "$mqtt_payload" | api_request \
-        --request POST \
-        --header "Content-Type: application/json" \
-        --data-binary @- \
-        "${API_BASE}/api/fanout" >/dev/null 2>&1; then
-        echo "mqtt_ha fanout configured; MESHRIK will publish entities to Home Assistant."
-        return 0
-    fi
+	echo "Configuring mqtt_ha fanout against ${MQTT_HOST}:${MQTT_PORT} (TLS: ${MQTT_TLS})..."
+	if printf '%s' "$mqtt_payload" | api_request \
+		--request POST \
+		--header "Content-Type: application/json" \
+		--data-binary @- \
+		"${API_BASE}/api/fanout" >/dev/null 2>&1; then
+		echo "mqtt_ha fanout configured; MESHRIK will publish entities to Home Assistant."
+		return 0
+	fi
 
-    # A concurrent setup may have won between our GET and POST. Confirm before
-    # retrying so a successful race never creates a duplicate integration.
-    if fanout_response=$(api_request "${API_BASE}/api/fanout" 2>/dev/null) &&
-       read_mqtt_fanout_count "$fanout_response" &&
-       [ "$MQTT_COUNT" -gt 0 ]; then
-        echo "mqtt_ha fanout appeared during setup; preserving its current settings."
-        return 0
-    fi
-    echo "Could not create mqtt_ha fanout." >&2
-    return 1
+	# A concurrent setup may have won between our GET and POST. Confirm before
+	# retrying so a successful race never creates a duplicate integration.
+	if fanout_response=$(api_request "${API_BASE}/api/fanout" 2>/dev/null) &&
+		read_mqtt_fanout_count "$fanout_response" &&
+		[ "$MQTT_COUNT" -gt 0 ]; then
+		echo "mqtt_ha fanout appeared during setup; preserving its current settings."
+		return 0
+	fi
+	echo "Could not create mqtt_ha fanout." >&2
+	return 1
 }
 
 # Invoked by the MQTT helper's TERM/INT traps.
 # shellcheck disable=SC2329
 mqtt_helper_interrupted() {
-    [ -z "$RETRY_SLEEP_PID" ] || kill -TERM "$RETRY_SLEEP_PID" 2>/dev/null || true
-    [ -z "${MESHRIK_HA_MQTT_HELPER_STOP_FILE:-}" ] ||
-        : > "$MESHRIK_HA_MQTT_HELPER_STOP_FILE"
-    exit 0
+	[ -z "$RETRY_SLEEP_PID" ] || kill -TERM "$RETRY_SLEEP_PID" 2>/dev/null || true
+	[ -z "${MESHRIK_HA_MQTT_HELPER_STOP_FILE:-}" ] ||
+		: >"$MESHRIK_HA_MQTT_HELPER_STOP_FILE"
+	exit 0
 }
 
 mqtt_reconciliation_loop() {
-    local attempt
-    trap mqtt_helper_interrupted TERM INT
-    for ((attempt = 1; attempt <= MQTT_RETRY_ATTEMPTS; attempt++)); do
-        reconcile_mqtt_fanout && return 0
-        if [ "$attempt" -lt "$MQTT_RETRY_ATTEMPTS" ]; then
-            echo "MQTT auto-setup attempt ${attempt}/${MQTT_RETRY_ATTEMPTS} failed; retrying in ${MQTT_RETRY_INTERVAL}s." >&2
-            sleep "$MQTT_RETRY_INTERVAL" &
-            RETRY_SLEEP_PID=$!
-            wait "$RETRY_SLEEP_PID" || return 0
-            RETRY_SLEEP_PID=""
-        fi
-    done
-    echo "Automatic MQTT setup stopped after ${MQTT_RETRY_ATTEMPTS} attempts; configure it in the MESHRIK UI." >&2
+	local attempt
+	trap mqtt_helper_interrupted TERM INT
+	for ((attempt = 1; attempt <= MQTT_RETRY_ATTEMPTS; attempt++)); do
+		reconcile_mqtt_fanout && return 0
+		if [ "$attempt" -lt "$MQTT_RETRY_ATTEMPTS" ]; then
+			echo "MQTT auto-setup attempt ${attempt}/${MQTT_RETRY_ATTEMPTS} failed; retrying in ${MQTT_RETRY_INTERVAL}s." >&2
+			sleep "$MQTT_RETRY_INTERVAL" &
+			RETRY_SLEEP_PID=$!
+			wait "$RETRY_SLEEP_PID" || return 0
+			RETRY_SLEEP_PID=""
+		fi
+	done
+	echo "Automatic MQTT setup stopped after ${MQTT_RETRY_ATTEMPTS} attempts; configure it in the MESHRIK UI." >&2
 }
 
 stop_mqtt_helper() {
-    if [ -n "$MQTT_HELPER_PID" ]; then
-        kill -TERM "$MQTT_HELPER_PID" 2>/dev/null || true
-        wait "$MQTT_HELPER_PID" 2>/dev/null || true
-        MQTT_HELPER_PID=""
-    fi
+	if [ -n "$MQTT_HELPER_PID" ]; then
+		kill -TERM "$MQTT_HELPER_PID" 2>/dev/null || true
+		wait "$MQTT_HELPER_PID" 2>/dev/null || true
+		MQTT_HELPER_PID=""
+	fi
 }
 
 wait_for_child() {
-    if wait "$APP_PID"; then
-        CHILD_STATUS=0
-    else
-        CHILD_STATUS=$?
-    fi
+	if wait "$APP_PID"; then
+		CHILD_STATUS=0
+	else
+		CHILD_STATUS=$?
+	fi
 }
 
 # Invoked by TERM/INT traps.
 # shellcheck disable=SC2317,SC2329
 forward_signal() {
-    local exit_code=$1
-    trap - TERM INT
-    stop_mqtt_helper
-    if [ -n "$APP_PID" ] && kill -0 "$APP_PID" 2>/dev/null; then
-        kill -TERM "$APP_PID" 2>/dev/null || true
-    fi
-    [ -z "$APP_PID" ] || wait "$APP_PID" 2>/dev/null || true
-    exit "$exit_code"
+	local exit_code=$1
+	trap - TERM INT
+	stop_mqtt_helper
+	if [ -n "$APP_PID" ] && kill -0 "$APP_PID" 2>/dev/null; then
+		kill -TERM "$APP_PID" 2>/dev/null || true
+	fi
+	[ -z "$APP_PID" ] || wait "$APP_PID" 2>/dev/null || true
+	exit "$exit_code"
 }
 
 cd "$APP_DIR"
@@ -313,7 +316,7 @@ cd "$APP_DIR"
 # operator-authored bots in its application process, so never let either the
 # current or legacy token variable cross that privilege boundary.
 env -u SUPERVISOR_TOKEN -u HASSIO_TOKEN \
-    "$UV_BIN" run uvicorn app.main:app --host 0.0.0.0 --port 8000 &
+	"$UV_BIN" run uvicorn app.main:app --host 0.0.0.0 --port 8000 &
 APP_PID=$!
 trap 'forward_signal 143' TERM
 trap 'forward_signal 130' INT
@@ -321,37 +324,37 @@ trap 'forward_signal 130' INT
 echo "Waiting for MESHRIK to start..."
 READY=false
 for ((attempt = 1; attempt <= READINESS_ATTEMPTS; attempt++)); do
-    if ! kill -0 "$APP_PID" 2>/dev/null; then
-        wait_for_child
-        echo "MESHRIK exited before becoming ready (status ${CHILD_STATUS})." >&2
-        [ "$CHILD_STATUS" -ne 0 ] || CHILD_STATUS=1
-        exit "$CHILD_STATUS"
-    fi
+	if ! kill -0 "$APP_PID" 2>/dev/null; then
+		wait_for_child
+		echo "MESHRIK exited before becoming ready (status ${CHILD_STATUS})." >&2
+		[ "$CHILD_STATUS" -ne 0 ] || CHILD_STATUS=1
+		exit "$CHILD_STATUS"
+	fi
 
-    if api_request --retry 0 --max-time 2 --output /dev/null \
-        "${API_BASE}/api/health" 2>/dev/null; then
-        READY=true
-        echo "MESHRIK HTTP API is responding; radio startup may still be initializing."
-        break
-    fi
+	if api_request --retry 0 --max-time 2 --output /dev/null \
+		"${API_BASE}/api/health" 2>/dev/null; then
+		READY=true
+		echo "MESHRIK HTTP API is responding; radio startup may still be initializing."
+		break
+	fi
 
-    [ "$attempt" -eq "$READINESS_ATTEMPTS" ] || sleep "$READINESS_INTERVAL"
+	[ "$attempt" -eq "$READINESS_ATTEMPTS" ] || sleep "$READINESS_INTERVAL"
 done
 
 if [ "$READY" != true ]; then
-    echo "MESHRIK did not become ready after ${READINESS_ATTEMPTS} attempts." >&2
-    kill -TERM "$APP_PID" 2>/dev/null || true
-    wait "$APP_PID" 2>/dev/null || true
-    exit 1
+	echo "MESHRIK did not become ready after ${READINESS_ATTEMPTS} attempts." >&2
+	kill -TERM "$APP_PID" 2>/dev/null || true
+	wait "$APP_PID" 2>/dev/null || true
+	exit 1
 fi
 
 if [ -n "${SUPERVISOR_TOKEN:-}" ]; then
-    SUPERVISOR_HEADER_FILE=$(make_private_header_file \
-        "Authorization: Bearer ${SUPERVISOR_TOKEN}")
-    mqtt_reconciliation_loop &
-    MQTT_HELPER_PID=$!
+	SUPERVISOR_HEADER_FILE=$(make_private_header_file \
+		"Authorization: Bearer ${SUPERVISOR_TOKEN}")
+	mqtt_reconciliation_loop &
+	MQTT_HELPER_PID=$!
 else
-    echo "Supervisor token is absent; skipping automatic MQTT setup."
+	echo "Supervisor token is absent; skipping automatic MQTT setup."
 fi
 
 wait_for_child
