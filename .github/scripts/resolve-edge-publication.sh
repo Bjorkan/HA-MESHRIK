@@ -62,15 +62,20 @@ if [[ -f "${lock_file}" ]]; then
     locked_wrapper_image=$(jq -er '.wrapper_image' "${lock_file}")
     if [[ "${locked_wrapper_image}" == "${wrapper_image}" ]]; then
       wrapper_version=$(jq -er '.wrapper_version' "${lock_file}")
-      wrapper_digest=$(jq -er '.wrapper_digest' "${lock_file}")
-      wrapper_manifest=$(docker buildx imagetools inspect \
-        "${wrapper_image}@${wrapper_digest}" --format '{{json .Manifest}}')
-      jq -e --arg digest "${wrapper_digest}" '
-      .digest == $digest and
-      ([.manifests[].platform | select(.os == "linux") | .architecture]
-        | contains(["amd64", "arm64"]))
-      ' <<<"${wrapper_manifest}" >/dev/null
-      needs_publish=false
+      wrapper_digest=$(jq -er '.wrapper_digest // empty' "${lock_file}" || true)
+      if [[ -z "${wrapper_digest}" ]]; then
+        echo "Published wrapper digest is missing; rebuilding the edge image."
+      elif wrapper_manifest=$(docker buildx imagetools inspect \
+        "${wrapper_image}@${wrapper_digest}" --format '{{json .Manifest}}') &&
+        jq -e --arg digest "${wrapper_digest}" '
+        .digest == $digest and
+        ([.manifests[].platform | select(.os == "linux") | .architecture]
+          | contains(["amd64", "arm64"]))
+        ' <<<"${wrapper_manifest}" >/dev/null; then
+        needs_publish=false
+      else
+        echo "Published wrapper manifest is missing or incomplete; rebuilding the edge image."
+      fi
     else
       echo "Wrapper registry renamed; publish a new edge image before updating its lock."
     fi
