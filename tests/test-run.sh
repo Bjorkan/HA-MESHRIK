@@ -77,6 +77,7 @@ make_fake_tools() {
         'if [ "${FAKE_UV_MODE:-serve}" = exit ]; then exit "${FAKE_UV_STATUS:-23}"; fi' \
         'trap '\''printf terminated > "${UV_TERM_FILE}"; exit 0'\'' TERM INT' \
         'printf started > "${UV_STARTED_FILE}"' \
+        'if [ -n "${CHILD_ENV_FILE:-}" ]; then env | sort > "${CHILD_ENV_FILE}"; fi' \
         'if [ -n "${STARTUP_ENV_FILE:-}" ]; then env | grep -E "^MESHCORE_(STARTUP_|PASSIVE_STARTUP|SKIP_POST_CONNECT_SYNC|LOGIN_RESPONSE_TIMEOUT_SECONDS|AUTO_REBOOT_ON_CLOCK_SKEW)" | sort > "${STARTUP_ENV_FILE}"; fi' \
         'while :; do sleep 1; done' \
         > "$apply_uv"
@@ -151,6 +152,7 @@ start_wrapper() {
         POST_FILE="$case_dir/post.json" \
         SUPERVISOR_FILE="$case_dir/supervisor" \
         UV_STARTED_FILE="$case_dir/uv-started" \
+        CHILD_ENV_FILE="$case_dir/child-env" \
         STARTUP_ENV_FILE="$case_dir/startup-env" \
         UV_TERM_FILE="$case_dir/uv-terminated" \
         "$@" \
@@ -189,6 +191,7 @@ run_authenticated_tls_case() {
 
     start_wrapper "$script" "$case_dir" \
         SUPERVISOR_TOKEN='supervisor-secret' \
+        HASSIO_TOKEN='legacy-supervisor-secret' \
         EXPECTED_SUPERVISOR_TOKEN='supervisor-secret' \
         EXPECTED_API_AUTH="$auth_value" \
         MQTT_RESPONSE="$mqtt_response"
@@ -202,6 +205,11 @@ run_authenticated_tls_case() {
          .config.username == $username and .config.password == $password' \
         "$case_dir/post.json" >/dev/null
     assert_file "$case_dir/uv-terminated"
+    assert_file "$case_dir/child-env"
+    ! grep -Eq '^(SUPERVISOR_TOKEN|HASSIO_TOKEN)=' "$case_dir/child-env" || \
+        fail "Supervisor credential reached the application process"
+    ! grep -Fq 'supervisor-secret' "$case_dir/output.log" || fail "Supervisor token leaked"
+    ! grep -Fq 'legacy-supervisor-secret' "$case_dir/output.log" || fail "legacy Supervisor token leaked"
     ! grep -Fq "$auth_pass" "$case_dir/output.log" || fail "Basic Auth password leaked"
     ! grep -Fq "$mqtt_pass" "$case_dir/output.log" || fail "MQTT password leaked"
 }

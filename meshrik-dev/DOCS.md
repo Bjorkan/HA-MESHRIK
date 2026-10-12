@@ -8,4 +8,11 @@ MESHRIK is a fork of [RemoteTerm for MeshCore](https://github.com/jkingsman/Remo
 
 Configuration, MQTT bootstrap, ingress, radio connection methods, and security guidance match the stable app, including the `passive`/`sync`/`full` startup policies and individual opt-ins. `sync` is read-only with respect to the radio; `full` alone never authorizes writes, advertising or deletion. The `startup_clear_channel_slots` and `startup_allow_periodic_offload` options can remove device data and must remain off unless deliberately authorized. MQTT bootstrap honors the Supervisor broker's TLS setting and preserves an existing `mqtt_ha` fanout; update that fanout in the MESHRIK UI, or delete it and restart, when Supervisor broker credentials or settings change. This app uses the `meshrik-dev` slug and therefore has storage separate from the stable app. A legacy `remoteterm-dev` installation is a different app and its data is not migrated automatically.
 
+The launcher's Home Assistant Supervisor token is used only for MQTT service discovery and is
+removed from the MESHRIK child environment, so bots cannot retrieve it from `os.environ`. Bots
+remain trusted code with MESHRIK's own radio, database, `/data`, and `/share` capabilities. Disable
+bots and use Basic Auth behind HTTPS if port 8000 is exposed outside Home Assistant Ingress. See the
+[Home Assistant app configuration](https://developers.home-assistant.io/docs/apps/configuration/)
+for the distinction between default-role Supervisor API access and the separate Core API proxy.
+
 Report wrapper issues in [HA-MESHRIK](https://github.com/Bjorkan/HA-MESHRIK/issues) and application issues in [MESHRIK](https://github.com/Bjorkan/MESHRIK/issues).

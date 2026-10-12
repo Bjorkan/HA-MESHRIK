@@ -98,6 +98,10 @@ for the exact opt-in list and rollback guidance.
 
 When the Mosquitto broker app is available, the wrapper asks the Supervisor for its connection details and creates an `mqtt_ha` fanout on first start. Existing fanout settings are never overwritten. MESHRIK continues to work when Mosquitto is absent.
 
+The Supervisor bearer token is kept in the launcher and explicitly removed from the MESHRIK
+application environment. User-authored bots cannot obtain it from `os.environ`; bots still run as
+trusted MESHRIK code with access to the radio, database, and writable app/shared storage.
+
 See [MESHRIK's Home Assistant documentation](https://github.com/Bjorkan/MESHRIK/blob/main/README_HA.md) for the entities it publishes.
 
 ## Persistence and shared storage

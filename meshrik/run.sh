@@ -207,7 +207,11 @@ forward_signal() {
 }
 
 cd "$APP_DIR"
-"$UV_BIN" run uvicorn app.main:app --host 0.0.0.0 --port 8000 &
+# The Supervisor credential belongs to this launcher. MESHRIK executes
+# operator-authored bots in its application process, so never let either the
+# current or legacy token variable cross that privilege boundary.
+env -u SUPERVISOR_TOKEN -u HASSIO_TOKEN \
+    "$UV_BIN" run uvicorn app.main:app --host 0.0.0.0 --port 8000 &
 APP_PID=$!
 trap 'forward_signal 143' TERM
 trap 'forward_signal 130' INT

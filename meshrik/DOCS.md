@@ -6,6 +6,18 @@ MESHRIK appears in the Home Assistant sidebar and is served through ingress. No 
 
 > **Security:** MESHRIK is intended for trusted networks. Bots execute user-provided Python. If you expose the port directly, use HTTPS at a trusted reverse proxy, enable Basic Auth, and consider `disable_bots: true`.
 
+The wrapper enables Home Assistant's `hassio_api` only to discover the optional MQTT service.
+Per the [official app configuration](https://developers.home-assistant.io/docs/apps/configuration/),
+this grants Supervisor REST API access under the default `hassio_role`; it does not enable the
+separate Home Assistant Core API proxy. The launcher sends the injected token only to the local
+Supervisor service endpoint and removes Supervisor token variables from MESHRIK's child
+environment. Bots therefore cannot read that bearer token from `os.environ`.
+
+This isolation does not sandbox bots from MESHRIK itself. An enabled bot remains trusted code with
+the application's database, radio operations, and writable `/data` and `/share` access. Disable
+bots when operators who can create or edit them should not have those capabilities, especially
+when exposing port 8000 outside Home Assistant Ingress.
+
 ## Radio connection
 
 Configure exactly one connection method:
