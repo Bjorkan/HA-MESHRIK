@@ -47,6 +47,20 @@ wait_for_file() {
     fail "timed out waiting for $file"
 }
 
+wait_for_log() {
+    local pattern=$1
+    local file=$2
+    local pid=$3
+    local attempt
+    for ((attempt = 1; attempt <= 100; attempt++)); do
+        grep -Fq "$pattern" "$file" 2>/dev/null && return 0
+        kill -0 "$pid" 2>/dev/null || break
+        sleep 0.05
+    done
+    [ ! -f "$file" ] || sed 's/^/  /' "$file" >&2
+    fail "timed out waiting for '$pattern' in $file"
+}
+
 write_options() {
     local file=$1
     local auth_user=${2:-}
@@ -91,6 +105,7 @@ make_fake_tools() {
         'url=' \
         'headers=' \
         'read_stdin=false' \
+        'increment_counter() { local file=$1 value=0; [ ! -f "$file" ] || read -r value < "$file"; value=$((value + 1)); printf "%s\n" "$value" > "$file"; printf "%s\n" "$value"; }' \
         'while (($#)); do' \
         '  case "$1" in' \
         '    --request|-X) shift; method=$1 ;;' \
@@ -111,18 +126,26 @@ make_fake_tools() {
         '      ;;' \
         '    */api/fanout)' \
         '      if [ "$method" = POST ]; then' \
+        '        count=$(increment_counter "${POST_COUNT_FILE}")' \
         '        $read_stdin && cat > "${POST_FILE}"' \
+        '        if [ "${POST_MODE:-normal}" = race ]; then touch "${FANOUT_STATE_FILE}"; exit 22; fi' \
+        '        (( count > ${POST_FAILS:-0} )) || exit 22' \
+        '        touch "${FANOUT_STATE_FILE}"' \
         '        printf '\''{"id":1}\n'\''' \
         '      else' \
         '        touch "${FANOUT_GET_FILE}"' \
-        '        printf "%s\n" "${FANOUT_RESPONSE:-[]}"' \
+        '        count=$(increment_counter "${FANOUT_GET_COUNT_FILE}")' \
+        '        (( count > ${FANOUT_GET_FAILS:-0} )) || exit 22' \
+        '        if [ -f "${FANOUT_STATE_FILE}" ]; then printf '\''[{"type":"mqtt_ha","config":{"broker_host":"created"}}]\n'\''; else printf "%s\n" "${FANOUT_RESPONSE:-[]}"; fi' \
         '      fi' \
         '      ;;' \
         '  esac' \
         'elif [ "$url" = "${TEST_MQTT_URL}" ]; then' \
         '  touch "${SUPERVISOR_FILE}"' \
+        '  count=$(increment_counter "${SUPERVISOR_COUNT_FILE}")' \
         '  grep -Fqx "Authorization: Bearer ${EXPECTED_SUPERVISOR_TOKEN}" <<<"$headers"' \
         '  [ "${SUPERVISOR_MODE:-ok}" = fail ] && exit 22' \
+        '  (( count > ${SUPERVISOR_FAILS:-0} )) || exit 22' \
         '  printf "%s\n" "${MQTT_RESPONSE:-not-json}"' \
         'else' \
         '  exit 22' \
@@ -144,13 +167,20 @@ start_wrapper() {
         MESHRIK_HA_MQTT_URL="http://supervisor.test/services/mqtt" \
         MESHRIK_HA_READINESS_ATTEMPTS=3 \
         MESHRIK_HA_READINESS_INTERVAL=0 \
+        MESHRIK_HA_MQTT_RETRY_ATTEMPTS=3 \
+        MESHRIK_HA_MQTT_RETRY_INTERVAL=0 \
+        MESHRIK_HA_MQTT_HELPER_STOP_FILE="$case_dir/mqtt-helper-stopped" \
         TEST_API_BASE="http://meshrik.test:8000" \
         TEST_MQTT_URL="http://supervisor.test/services/mqtt" \
         CURL_LOG="$case_dir/curl.log" \
         HEALTH_FILE="$case_dir/health" \
         FANOUT_GET_FILE="$case_dir/fanout-get" \
         POST_FILE="$case_dir/post.json" \
+        POST_COUNT_FILE="$case_dir/post-count" \
+        FANOUT_GET_COUNT_FILE="$case_dir/fanout-get-count" \
+        FANOUT_STATE_FILE="$case_dir/fanout-state" \
         SUPERVISOR_FILE="$case_dir/supervisor" \
+        SUPERVISOR_COUNT_FILE="$case_dir/supervisor-count" \
         UV_STARTED_FILE="$case_dir/uv-started" \
         CHILD_ENV_FILE="$case_dir/child-env" \
         STARTUP_ENV_FILE="$case_dir/startup-env" \
@@ -237,7 +267,7 @@ run_invalid_responses_case() {
     start_wrapper "$ROOT/meshrik-dev/run.sh" "$case_dir" \
         SUPERVISOR_TOKEN=token EXPECTED_SUPERVISOR_TOKEN=token \
         MQTT_RESPONSE='{"result":"ok","data":{"host":"broker","port":"not-a-number","ssl":"yes"}}'
-    wait_for_file "$case_dir/health" "$WRAPPER_PID"
+    wait_for_log 'invalid MQTT service data' "$case_dir/output.log" "$WRAPPER_PID"
     stop_wrapper "$WRAPPER_PID"
     assert_no_file "$case_dir/post.json"
     grep -Fq 'invalid MQTT service data' "$case_dir/output.log"
@@ -249,11 +279,59 @@ run_missing_token_case() {
     make_fake_tools "$case_dir/tools"
     write_options "$case_dir/options.json"
     start_wrapper "$ROOT/meshrik/run.sh" "$case_dir"
-    wait_for_file "$case_dir/health" "$WRAPPER_PID"
+    wait_for_log 'Supervisor token is absent' "$case_dir/output.log" "$WRAPPER_PID"
     stop_wrapper "$WRAPPER_PID"
     assert_no_file "$case_dir/supervisor"
     assert_no_file "$case_dir/post.json"
     grep -Fq 'Supervisor token is absent' "$case_dir/output.log"
+}
+
+run_mqtt_recovery_case() {
+    local case_dir="$TMP_ROOT/mqtt-recovery"
+    mkdir -p "$case_dir"
+    make_fake_tools "$case_dir/tools"
+    write_options "$case_dir/options.json"
+    start_wrapper "$ROOT/meshrik/run.sh" "$case_dir" \
+        SUPERVISOR_TOKEN=token EXPECTED_SUPERVISOR_TOKEN=token \
+        MQTT_RESPONSE='{"result":"ok","data":{"host":"recovered-broker","port":8883,"username":"user","password":"secret","ssl":true}}' \
+        SUPERVISOR_FAILS=1 FANOUT_GET_FAILS=1 POST_FAILS=1 \
+        MESHRIK_HA_MQTT_RETRY_ATTEMPTS=6
+    wait_for_file "$case_dir/fanout-state" "$WRAPPER_PID"
+    stop_wrapper "$WRAPPER_PID"
+    [ "$(< "$case_dir/supervisor-count")" -ge 4 ] || fail "Supervisor discovery was not retried"
+    [ "$(< "$case_dir/fanout-get-count")" -ge 3 ] || fail "fanout GET was not retried"
+    [ "$(< "$case_dir/post-count")" -eq 2 ] || fail "fanout POST retry count was unexpected"
+    grep -Fq 'mqtt_ha fanout configured' "$case_dir/output.log"
+    ! grep -Fq 'secret' "$case_dir/output.log" || fail "recovered MQTT password leaked"
+}
+
+run_mqtt_race_case() {
+    local case_dir="$TMP_ROOT/mqtt-race"
+    mkdir -p "$case_dir"
+    make_fake_tools "$case_dir/tools"
+    write_options "$case_dir/options.json"
+    start_wrapper "$ROOT/meshrik-dev/run.sh" "$case_dir" \
+        SUPERVISOR_TOKEN=token EXPECTED_SUPERVISOR_TOKEN=token \
+        MQTT_RESPONSE='{"result":"ok","data":{"host":"broker","port":1883,"ssl":false}}' \
+        POST_MODE=race
+    wait_for_log 'appeared during setup' "$case_dir/output.log" "$WRAPPER_PID"
+    stop_wrapper "$WRAPPER_PID"
+    [ "$(< "$case_dir/post-count")" -eq 1 ] || fail "race created duplicate POST attempts"
+}
+
+run_mqtt_cancellation_case() {
+    local case_dir="$TMP_ROOT/mqtt-cancellation"
+    mkdir -p "$case_dir"
+    make_fake_tools "$case_dir/tools"
+    write_options "$case_dir/options.json"
+    start_wrapper "$ROOT/meshrik/run.sh" "$case_dir" \
+        SUPERVISOR_TOKEN=token EXPECTED_SUPERVISOR_TOKEN=token \
+        SUPERVISOR_MODE=fail MESHRIK_HA_MQTT_RETRY_ATTEMPTS=10 \
+        MESHRIK_HA_MQTT_RETRY_INTERVAL=30
+    wait_for_log 'retrying in 30s' "$case_dir/output.log" "$WRAPPER_PID"
+    stop_wrapper "$WRAPPER_PID"
+    assert_file "$case_dir/mqtt-helper-stopped"
+    assert_file "$case_dir/uv-terminated"
 }
 
 run_child_exit_case() {
@@ -374,6 +452,9 @@ run_authenticated_tls_case "$ROOT/meshrik-dev/run.sh" dev-auth-tls
 run_existing_fanout_case
 run_invalid_responses_case
 run_missing_token_case
+run_mqtt_recovery_case
+run_mqtt_race_case
+run_mqtt_cancellation_case
 run_child_exit_case
 run_readiness_timeout_case
 run_startup_policy_cases

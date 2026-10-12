@@ -69,9 +69,9 @@ be used as part of passive startup smoke testing.
 
 ## MQTT and persistence
 
-If the Supervisor exposes an MQTT service, the app creates a Home Assistant MQTT fanout on first start, including the broker's TLS setting. Internal setup requests use the configured Basic Auth credentials. User-edited fanout configuration is preserved on later starts.
+If the Supervisor exposes an MQTT service, the app creates a Home Assistant MQTT fanout, including the broker's TLS setting. Internal setup requests use the configured Basic Auth credentials. Discovery and fanout requests are retried for a bounded period in a background helper, so a temporarily unavailable Supervisor, broker app, or MESHRIK API does not require an app restart. This helper never delays or restarts the radio process and stops cleanly with the app. Logs report retry progress and tell you when automatic setup has stopped. User-edited fanout configuration is always preserved.
 
-If the Supervisor later changes the MQTT broker, credentials, port, or TLS setting, an existing `mqtt_ha` fanout is intentionally not overwritten. Update it in the MESHRIK UI, or delete it and restart the app to bootstrap it again from the current Supervisor service data.
+If the Supervisor later changes the MQTT broker, credentials, port, or TLS setting, an existing `mqtt_ha` fanout is intentionally not overwritten. Update it in the MESHRIK UI, or delete it and restart the app to bootstrap it again from the current Supervisor service data. Missing MQTT remains an optional integration failure and does not make MESHRIK startup fail.
 
 The SQLite database is `/data/meshcore.db` and survives normal restart and app update operations. Keep Home Assistant backups of the app data before major upgrades.
 

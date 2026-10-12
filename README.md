@@ -96,7 +96,7 @@ for the exact opt-in list and rollback guidance.
 
 ## Home Assistant MQTT integration
 
-When the Mosquitto broker app is available, the wrapper asks the Supervisor for its connection details and creates an `mqtt_ha` fanout on first start. Existing fanout settings are never overwritten. MESHRIK continues to work when Mosquitto is absent.
+When the Mosquitto broker app is available, the wrapper asks the Supervisor for its connection details and creates an `mqtt_ha` fanout. A bounded background helper retries temporary Supervisor and application API failures without delaying or restarting the radio process. Existing fanout settings are never overwritten, and a successful concurrent setup is detected before another POST is attempted. MESHRIK continues to work when Mosquitto is absent.
 
 The Supervisor bearer token is kept in the launcher and explicitly removed from the MESHRIK
 application environment. User-authored bots cannot obtain it from `os.environ`; bots still run as
