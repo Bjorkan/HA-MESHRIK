@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026.10.13.15
+
+- Package MESHRIK edge commit [`aff377da168a39886196f9d3b344c8638c1bae85`](https://github.com/Bjorkan/MESHRIK/commit/aff377da168a39886196f9d3b344c8638c1bae85).
+- Pin source image digest `sha256:88b9468d650da2e9c430c57a42ba4f686ba4801d94b71832cb1e0bf3f05f9933`.
+
+
 ## 2026.10.13.13
 
 - Package MESHRIK edge commit [`2f4513101af8b068cafbef17480d8e801717f38b`](https://github.com/Bjorkan/MESHRIK/commit/2f4513101af8b068cafbef17480d8e801717f38b).
