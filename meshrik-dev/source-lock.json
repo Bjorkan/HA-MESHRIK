@@ -1,9 +1,9 @@
 {
-  "source_sha": "3cfa45084ec108fc1c3712aefab5f3878e0d4cd4",
+  "source_sha": "33b60aaefa0470a5aa673f967374c8f7b8c1f4c0",
   "source_image": "ghcr.io/bjorkan/meshrik",
-  "source_digest": "sha256:1cd99bcc82fad642bb2bbedaba8e91d4c8adc82e2d8d40ff1899dcf3b201ff68",
-  "source_url": "https://github.com/Bjorkan/MESHRIK/commit/3cfa45084ec108fc1c3712aefab5f3878e0d4cd4",
-  "wrapper_version": "2026.10.16.34",
+  "source_digest": "sha256:b282c432682a74a457124812cabc92703169bacbedd81ed3daef967b496efa21",
+  "source_url": "https://github.com/Bjorkan/MESHRIK/commit/33b60aaefa0470a5aa673f967374c8f7b8c1f4c0",
+  "wrapper_version": "2026.10.16.36",
   "wrapper_image": "ghcr.io/bjorkan/ha-meshrik/meshrik-app-dev",
-  "wrapper_digest": "sha256:eb123e0fc3ef1fd7fa1c0fe7655829c48a72e480bfdf671273ecbee8a882e27f"
+  "wrapper_digest": "sha256:83ea9b3c8d71b72d066f8ceba60cd8a8e6ac6db0c42e5024c9cb60a68c860bc8"
 }
