@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026.10.21.52
+
+- Package MESHRIK edge commit [`c44757aaca3e19d46c3c93e367eaf0ecdcc576a1`](https://github.com/Bjorkan/MESHRIK/commit/c44757aaca3e19d46c3c93e367eaf0ecdcc576a1).
+- Pin source image digest `sha256:75654732e093c0fe0ebe471d4b24aebbf4bf58e7f43aa0fd7e56d6a22ea59426`.
+
+
 ## Unreleased
 
 - Publish Virtual Companion TCP on host port 5000 by default. Configure the integration at
