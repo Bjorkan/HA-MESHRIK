@@ -279,7 +279,7 @@ reconcile_mqtt_fanout() {
 }
 
 # Invoked by the MQTT helper's TERM/INT traps.
-# shellcheck disable=SC2329
+# shellcheck disable=SC2329,SC2317
 mqtt_helper_interrupted() {
 	[ -z "$RETRY_SLEEP_PID" ] || kill -TERM "$RETRY_SLEEP_PID" 2>/dev/null || true
 	[ -z "${MESHRIK_HA_MQTT_HELPER_STOP_FILE:-}" ] ||
