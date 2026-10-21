@@ -36,6 +36,10 @@ for directory, slug, package in (
     assert config['image'] == f'ghcr.io/bjorkan/ha-meshrik/{package}'
     assert config['version'] == lock['wrapper_version']
     assert config['options'].keys() == config['schema'].keys()
+    assert config['ports']['5000/tcp'] == 5000
+    assert 'Virtual Companion' in config['ports_description']['5000/tcp']
+    assert config['ports']['8000/tcp'] is None
+    assert config['ingress_port'] == 8000
     assert config['options']['skip_post_connect_sync'] is False
     assert config['options']['http_startup_timeout_seconds'] == 120
     assert config['schema']['http_startup_timeout_seconds'] == 'int(30,600)'

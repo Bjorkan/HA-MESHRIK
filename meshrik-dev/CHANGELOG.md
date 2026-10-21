@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Publish Virtual Companion TCP on host port 5000 by default. Configure the integration at
+  `0.0.0.0:5000`; existing settings remain unchanged. Restrict access to trusted LAN devices.
+
 ## 2026.10.21.51
 
 - Package MESHRIK edge commit [`0e5aa5e7486023591d824c85b8a54e4da479a009`](https://github.com/Bjorkan/MESHRIK/commit/0e5aa5e7486023591d824c85b8a54e4da479a009).

@@ -119,6 +119,29 @@ Bots can write files under `/share`, the Home Assistant shared volume. For examp
 
 Ingress provides authenticated sidebar access on port 8000 without exposing a host port. To use a reverse proxy, assign a host port to `8000/tcp` on the app's **Network** tab. Direct port exposure bypasses Home Assistant authentication, so enable MESHRIK Basic Auth and use HTTPS at the proxy.
 
+## Virtual Companion TCP
+
+Both app manifests publish container port `5000/tcp` on host port `5000` by default.
+In a MESHRIK version that supports Virtual Companion, create and enable **Settings → Integrations
+→ MeshCore App (Virtual TCP Companion)** with bind address `0.0.0.0` and port `5000`.
+The integration remains disabled until you enable it. Older releases may default to localhost
+and port 4001; edit their integration explicitly. The stable channel only gains application
+changes when a corresponding MESHRIK release is published.
+
+Connect the MeshCore app to the **Home Assistant host's LAN IP and port 5000**, not `0.0.0.0`,
+the ingress URL, or the physical radio's endpoint. The add-on `tcp_host`/`tcp_port` options select
+the physical radio and do not configure this inbound listener.
+
+Raw Companion TCP has no authentication or TLS; Home Assistant ingress and MESHRIK HTTP Basic
+auth do not protect it. Restrict port 5000 to trusted LAN devices using a firewall; never expose
+it publicly or forward it from the Internet. `0.0.0.0` listens on every IPv4 interface.
+
+Existing installations should check **Network** for the `5000/tcp` mapping after refreshing the
+app repository and restart the app after changing it. Existing saved integration settings are not
+overwritten. If stable and Bleeding Edge run side by side, map one app's `5000/tcp` to a different
+host port (for example 5001), or disable that mapping. Keep the internal integration port at 5000
+and use the chosen host port in the client. Port publication alone does not enable the listener.
+
 ## Support and attribution
 
 Report wrapper installation, Supervisor, ingress, or update issues in [HA-MESHRIK](https://github.com/Bjorkan/HA-MESHRIK/issues). Report application, UI, radio, or messaging issues in [MESHRIK](https://github.com/Bjorkan/MESHRIK/issues).
