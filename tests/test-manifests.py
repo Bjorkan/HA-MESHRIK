@@ -19,7 +19,7 @@ EXPECTED = {
     'startup_allow_periodic_offload': (False, 'bool'),
     'startup_enable_telemetry_collection': (False, 'bool'),
     'auto_reboot_on_clock_skew': (False, 'bool'),
-    'login_response_timeout_seconds': (5, 'int'),
+    'login_response_timeout_seconds': (5, 'int(1,60)'),
 }
 
 assert not (ROOT / 'remoteterm').exists()
