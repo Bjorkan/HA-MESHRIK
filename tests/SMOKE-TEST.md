@@ -183,3 +183,29 @@ before declaring either channel ready.
 | 10. Upgrade           |       |         |       |
 | 11. Shutdown          |       |         |       |
 | 12. Release Integrity |       |         |       |
+
+## App-guideline compatibility review (October 2026)
+
+Perform the following on both **amd64** and **aarch64**, for stable and Bleeding Edge:
+
+1. On a fresh install, verify no host mapping for either `8000/tcp` or `5000/tcp`.
+2. On an upgraded install, inspect and deliberately review **saved** network mappings;
+   previous Virtual Companion mappings may still expose host port 5000.
+3. In English and Swedish Configuration tabs, inspect all 27 labels/help descriptions.
+   Check that private credentials are masked and destructive radio operations have clear
+   warnings and default to `false`.
+4. Confirm MQTT discovery succeeds with a broker **without** `hassio_api` permission,
+   and that the app still starts when MQTT is absent.
+5. Exercise serial auto-detection, optional BLE, and `/share` write access on real hardware.
+6. Create/restore a **cold** Home Assistant backup and check SQLite integrity and data.
+7. Test ingress assets, API, WebSockets, service worker, deep links and reloads in both
+   Basic Auth configurations. **Known open issue:** root-absolute frontend URLs (wrapper
+   #9; upstream MESHRIK #72) may escape the ingress prefix; manifest checks do not
+   prove this works.
+8. If enabling an external HTTP port, use Basic Auth and HTTPS. If enabling the Virtual
+   Companion listener, limit its unauthenticated, non-TLS TCP port to the trusted LAN.
+9. During passive/sync startup checks, do not perform any write or destructive radio
+   operations; all maintenance toggles should remain disabled by default.
+
+The static configuration checks in `tests/test-manifests.py` are automated. These steps
+need a real Home Assistant Supervisor and are **not claimed as completed by CI**.
