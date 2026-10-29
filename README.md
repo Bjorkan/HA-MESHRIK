@@ -103,15 +103,16 @@ accommodates slow cold imports while still failing boundedly when the server cra
 binds. HTTP readiness does not require a radio connection, and startup recovery never requires
 deleting the database or resetting radio configuration, channel slots, or keys.
 
-The Supervisor bearer token is kept in the launcher and explicitly removed from the MESHRIK
-application environment. User-authored bots cannot obtain it from `os.environ`; bots still run as
-trusted MESHRIK code with access to the radio, database, and writable app/shared storage.
+The Supervisor's MQTT service endpoint is available without additional `hassio_api` permissions.
+The launcher removes Supervisor token variables from the MESHRIK child environment;
+this is not a security boundary against user-authored code in the same container.
+Bots are trusted code with access to radio, database, and writable app/shared storage.
 
 See [MESHRIK's Home Assistant documentation](https://github.com/Bjorkan/MESHRIK/blob/main/README_HA.md) for the entities it publishes.
 
 ## Persistence and shared storage
 
-Each app stores SQLite data at `/data/meshcore.db`, which Home Assistant preserves across restarts and updates. Because the app slugs differ, stable and Bleeding Edge do not share a database.
+Each app stores SQLite data at `/data/meshcore.db`, which Home Assistant preserves across restarts and updates. Both apps now use `backup: cold` to stop the app briefly while taking a consistent SQLite backup. Because the app slugs differ, stable and Bleeding Edge do not share a database.
 
 Bots can write files under `/share`, the Home Assistant shared volume. For example, `/share/meshrik/my-bot.log` is available to other apps and automations with access to that volume.
 
@@ -121,7 +122,9 @@ Ingress provides authenticated sidebar access on port 8000 without exposing a ho
 
 ## Virtual Companion TCP
 
-Both app manifests publish container port `5000/tcp` on host port `5000` by default.
+Both app manifests offer `5000/tcp` as an **optional host port, disabled by default**.
+To use Virtual Companion, explicitly map container port `5000/tcp` to a LAN-only host port
+(for example `5000`) in the app's **Network** tab.
 In a MESHRIK version that supports Virtual Companion, create and enable **Settings → Integrations
 → MeshCore App (Virtual TCP Companion)** with bind address `0.0.0.0` and port `5000`.
 The integration remains disabled until you enable it. Older releases may default to localhost
@@ -136,8 +139,9 @@ Raw Companion TCP has no authentication or TLS; Home Assistant ingress and MESHR
 auth do not protect it. Restrict port 5000 to trusted LAN devices using a firewall; never expose
 it publicly or forward it from the Internet. `0.0.0.0` listens on every IPv4 interface.
 
-Existing installations should check **Network** for the `5000/tcp` mapping after refreshing the
-app repository and restart the app after changing it. Existing saved integration settings are not
+Existing installations should check **Network** for any **previously saved**
+`5000/tcp` mapping after refreshing the app repository: the new default does
+not necessarily remove existing port assignments. Restart after changing them. Existing saved integration settings are not
 overwritten. If stable and Bleeding Edge run side by side, map one app's `5000/tcp` to a different
 host port (for example 5001), or disable that mapping. Keep the internal integration port at 5000
 and use the chosen host port in the client. Port publication alone does not enable the listener.
@@ -147,3 +151,15 @@ and use the chosen host port in the client. Port publication alone does not enab
 Report wrapper installation, Supervisor, ingress, or update issues in [HA-MESHRIK](https://github.com/Bjorkan/HA-MESHRIK/issues). Report application, UI, radio, or messaging issues in [MESHRIK](https://github.com/Bjorkan/MESHRIK/issues).
 
 MESHRIK is derived from RemoteTerm for MeshCore. See the linked original project and [this repository's license](LICENSE) for attribution and licensing details. The initial Home Assistant package was created by bhaggs; the preserved Git history records that work.
+
+## Compliance with Home Assistant app documentation
+
+Both app-store entries provide a localized English/Swedish option form and app-specific
+introduction and documentation. Credential inputs are masked, dangerous radio-maintenance
+options are explicitly labelled, and no elevated Supervisor API access is needed for
+optional MQTT service discovery.
+
+**Known ingress risk:** MESHRIK currently uses root-absolute frontend URLs. See
+[wrapper issue #9](https://github.com/Bjorkan/HA-MESHRIK/issues/9) and
+[upstream issue #72](https://github.com/Bjorkan/MESHRIK/issues/72).
+Full compatibility requires prefix-aware frontend code and a live Home Assistant test.

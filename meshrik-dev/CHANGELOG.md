@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased — app guideline alignment
+
+- Default to no public host port for unauthenticated Virtual Companion TCP; check saved mappings after upgrading.
+- Use modern shared-folder mapping, least-privilege MQTT discovery and cold SQLite backups.
+- Mask sensitive credentials, bound login timeout, and add English/Swedish labels with prominent destructive-operation warnings.
+- Add app-store introductions, setup/security documentation and manifest translation regression tests.
+
+
 ## 2026.10.25.62
 
 - Package MESHRIK edge commit [`bf01dc45fe7ae75814e4ccae7e0c7a55f4c04109`](https://github.com/Bjorkan/MESHRIK/commit/bf01dc45fe7ae75814e4ccae7e0c7a55f4c04109).
