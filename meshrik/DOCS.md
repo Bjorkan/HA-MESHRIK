@@ -97,3 +97,24 @@ This app uses the `meshrik` slug. A legacy installation using the `remoteterm` s
 ## Updating and support
 
 The wrapper receives a new app version only after the corresponding stable MESHRIK image has been published. Wrapper issues belong in [HA-MESHRIK](https://github.com/Bjorkan/HA-MESHRIK/issues); application issues belong in [MESHRIK](https://github.com/Bjorkan/MESHRIK/issues).
+
+## Home Assistant Ingress compatibility
+
+The upstream MESHRIK frontend requires a base URL derived from the
+`X-Ingress-Path` header sent by Home Assistant. Source-side changes are proposed
+in [MESHRIK PR #270](https://github.com/Bjorkan/MESHRIK/pull/270);
+this wrapper adds a **release-time image check** so a newly advertised MESHRIK
+image must return correct Ingress-relative HTML and manifest URLs. The check
+does not update currently installed stable/edge images. Only a newly published
+upstream MESHRIK image built with the fix can enable the corrected behavior.
+
+The browser must keep JS, CSS, API, WebSocket, and in-app navigation beneath
+the active `/api/hassio_ingress/<session-token>/` prefix. MESHRIK's web-push/PWA
+service worker is deliberately disabled **inside Home Assistant Ingress** to
+avoid claiming the Home Assistant origin. Direct external access still needs
+HTTPS and MESHRIK Basic Auth; Ingress does not secure exposed TCP ports.
+
+See [Ingress test checklist](https://github.com/Bjorkan/HA-MESHRIK/blob/main/tests/INGRESS-TEST.md)
+and [issue #9](https://github.com/Bjorkan/HA-MESHRIK/issues/9). Real
+Home Assistant Supervisor verification is still required for both architectures
+and both app channels.

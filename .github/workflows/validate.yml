@@ -51,6 +51,7 @@ jobs:
 
       - name: Lint test script
         run: shellcheck tests/test-run.sh
+          shellcheck tests/verify-ingress-image.sh
 
       - name: Lint CI helper scripts
         run: |
