@@ -1,0 +1,85 @@
+configuration:
+  serial_port:
+    name: "Seriell enhet"
+    description: "Sökväg som /dev/ttyUSB0. Lämna tomt för automatisk identifiering. Seriell åtkomst kräver UART-behörighet."
+  serial_baudrate:
+    name: "Seriell överföringshastighet"
+    description: "Baudtal för den seriella anslutningen, vanligtvis 115200."
+  tcp_host:
+    name: "Radions TCP-värd"
+    description: "Värdnamn eller IP-adress till radion. Lämna tomt om TCP inte används."
+  tcp_port:
+    name: "Radions TCP-port"
+    description: "TCP-port för radioanslutningen, inte Virtual Companion-lyssnaren."
+  ble_address:
+    name: "BLE-enhetens adress"
+    description: "Radions Bluetooth-adress. BLE inuti containrar fungerar inte på alla system."
+  ble_pin:
+    name: "BLE-PIN"
+    description: "PIN-kod för Bluetooth-radion. Lämna tomt om ingen kod krävs."
+  log_level:
+    name: "Loggnivå"
+    description: "Hur detaljerade diagnostikloggar MESHRIK skriver."
+  disable_bots:
+    name: "Inaktivera Python-botar"
+    description: "Rekommenderas när andra operatörer kan nå appen. Botar kör Python med appens behörigheter."
+  basic_auth_username:
+    name: "Användarnamn för extern HTTP"
+    description: "Valfritt användarnamn för HTTP Basic Auth utanför ingress. Ange även lösenord och använd HTTPS."
+  basic_auth_password:
+    name: "Lösenord för extern HTTP"
+    description: "Lösenord för HTTP Basic Auth utanför ingress. Använd inte okrypterad HTTP."
+  enable_message_poll_fallback:
+    name: "Reservmetod för meddelanden"
+    description: "Hämta meddelanden genom polling om den normala händelsehanteringen inte räcker."
+  force_channel_slot_reconfigure:
+    name: "Konfigurera om kanalplatser"
+    description: "Avancerat: tvinga omkonfiguration vid anslutning. Kan ändra radioinställningar."
+  skip_post_connect_sync:
+    name: "Utfasat: hoppa över synkronisering"
+    description: "Äldre inställning som tvingar passivt läge även om synkronisering eller fullständigt läge valts."
+  startup_policy:
+    name: "Startpolicy"
+    description: "Rekommenderat: sync (skrivskyddade ögonblicksbilder). Passive läser mindre. Full kräver separata tillstånd för åtgärder."
+  passive_startup:
+    name: "Utfasat: tvinga passiv start"
+    description: "Äldre inställning som tvingar passivt läge oavsett vald startpolicy."
+  startup_export_private_key:
+    name: "KÄNSLIGT: exportera privat nyckel"
+    description: "Endast full-läge: tillåter export av radions privata nycklar till appens lagring. Skydda säkerhetskopior."
+  startup_sync_clock:
+    name: "AVANCERAT: synkronisera radioklockan"
+    description: "Endast full-läge: skriver radions klocka."
+  startup_apply_flood_scope:
+    name: "AVANCERAT: tillämpa flood scope"
+    description: "Endast full-läge: skriver inställd flood scope till radion."
+  startup_send_advertisement:
+    name: "SÄNDNING: skicka annonseringar"
+    description: "Endast full-läge: tillåter RF-annonseringar vid start och periodiskt."
+  startup_drain_messages:
+    name: "AVANCERAT: töm radiomeddelanden"
+    description: "Endast full-läge: hämtar väntande meddelanden och kan flytta information från radion."
+  startup_reconcile_contacts:
+    name: "AVANCERAT: stäm av kontakter"
+    description: "Endast full-läge: tillåter underhåll av radiokontakter."
+  startup_clear_channel_slots:
+    name: "DESTRUKTIVT: rensa kanalplatser"
+    description: "Endast full-läge: kan radera kanalinformation på radion. Säkerhetskopiera först och lämna normalt avstängd."
+  startup_allow_periodic_offload:
+    name: "DESTRUKTIVT: periodisk avlastning"
+    description: "Endast full-läge: kan ta bort kontakter eller kanalinformation från radion. Säkerhetskopiera först."
+  startup_enable_telemetry_collection:
+    name: "Samla in telemetri vid start"
+    description: "Endast full-läge: aktiverar ytterligare polling av radiotelemetri."
+  auto_reboot_on_clock_skew:
+    name: "AVANCERAT: starta om vid klockavvikelse"
+    description: "Tillåt omstart av den fysiska radion vid klockkorrigering."
+  login_response_timeout_seconds:
+    name: "Tidsgräns för radioinloggning (s)"
+    description: "Väntetid på radiosvar vid inloggning, mellan 1 och 60 sekunder."
+  http_startup_timeout_seconds:
+    name: "Tidsgräns för HTTP-start (s)"
+    description: "Längsta väntetid för HTTP-API:t, 30–600 sekunder, oberoende av radions status."
+network:
+  8000/tcp: "Valfri extern webbport (ingress använder den utan värdport). Aktivera bara med HTTPS och autentisering."
+  5000/tcp: "Virtual Companion TCP utan autentisering eller TLS. Avstängd som standard; exponera endast mot betrott LAN."

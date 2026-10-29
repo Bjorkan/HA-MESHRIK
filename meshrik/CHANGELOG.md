@@ -1,9 +1,11 @@
 # Changelog
 
-## Unreleased
+## Unreleased — app guideline alignment
 
-- Publish Virtual Companion TCP on host port 5000 by default. Enable the integration separately
-  in a supporting MESHRIK release; restrict access to trusted LAN devices.
+- Default to no public host port for unauthenticated Virtual Companion TCP; check saved mappings after upgrading.
+- Use modern shared-folder mapping, least-privilege MQTT discovery and cold SQLite backups.
+- Mask sensitive credentials, bound login timeout, and add English/Swedish labels with prominent destructive-operation warnings.
+- Add app-store introductions, setup/security documentation and manifest translation regression tests.
 
 ## 3.17.1.6
 

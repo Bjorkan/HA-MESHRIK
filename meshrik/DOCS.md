@@ -2,18 +2,21 @@
 
 This Home Assistant app runs the stable channel of [MESHRIK](https://github.com/Bjorkan/MESHRIK), a fork of [RemoteTerm for MeshCore](https://github.com/jkingsman/Remote-Terminal-for-MeshCore). It follows published stable MESHRIK releases through `ghcr.io/bjorkan/meshrik:latest`.
 
-MESHRIK appears in the Home Assistant sidebar and is served through ingress. No host port is exposed unless you explicitly map `8000/tcp` on the Network tab.
+MESHRIK appears in the Home Assistant sidebar and is served through ingress. **Neither
+`8000/tcp` (optional external HTTP) nor `5000/tcp` (Virtual Companion TCP) is
+mapped to a host port on new installations.** Only enable a port on the Network tab if
+necessary. Saved mappings from older installations may persist after an update.
 
 > **Security:** MESHRIK is intended for trusted networks. Bots execute user-provided Python. If you expose the port directly, use HTTPS at a trusted reverse proxy, enable Basic Auth, and consider `disable_bots: true`.
 
-The wrapper enables Home Assistant's `hassio_api` only to discover the optional MQTT service.
-Per the [official app configuration](https://developers.home-assistant.io/docs/apps/configuration/),
-this grants Supervisor REST API access under the default `hassio_role`; it does not enable the
-separate Home Assistant Core API proxy. The launcher sends the injected token only to the local
-Supervisor service endpoint and removes Supervisor token variables from MESHRIK's child
-environment. Bots therefore cannot read that bearer token from `os.environ`.
+The Supervisor's `/services/mqtt` endpoint is accessible without additional
+`hassio_api` permissions. The wrapper requests only `mqtt:want` discovery: it does
+not request elevated Supervisor or Home Assistant Core API access. See the
+[Supervisor API guide](https://contributors.home-assistant.io/apps/guides/communication/).
+The launcher removes Supervisor token variables from the MESHRIK child process environment,
+but this is **not** a security boundary against code running in the same container.
 
-This isolation does not sandbox bots from MESHRIK itself. An enabled bot remains trusted code with
+This separation does not sandbox bots from MESHRIK itself. An enabled bot remains trusted code with
 the application's database, radio operations, and writable `/data` and `/share` access. Disable
 bots when operators who can create or edit them should not have those capabilities, especially
 when exposing port 8000 outside Home Assistant Ingress.
@@ -97,3 +100,43 @@ This app uses the `meshrik` slug. A legacy installation using the `remoteterm` s
 ## Updating and support
 
 The wrapper receives a new app version only after the corresponding stable MESHRIK image has been published. Wrapper issues belong in [HA-MESHRIK](https://github.com/Bjorkan/HA-MESHRIK/issues); application issues belong in [MESHRIK](https://github.com/Bjorkan/MESHRIK/issues).
+
+## Installation, network exposure and backups
+
+1. In Home Assistant, open **Settings → Apps → App Store → Repositories** and add
+   `https://github.com/Bjorkan/HA-MESHRIK`.
+2. Install **MESHRIK**, configure one serial, TCP, or BLE radio connection, and start it.
+3. Open **Open Web UI**. Check the app's Log tab if it fails to start.
+
+Ingress is the preferred method for accessing the web interface. Mapping `8000/tcp`
+to a host port bypasses Home Assistant authentication; if you enable that mapping,
+set both MESHRIK Basic Auth credentials and use HTTPS at a trusted reverse proxy.
+For the unauthenticated **Virtual Companion TCP** server, configure its listener in
+MESHRIK under **Settings → Integrations → MeshCore App (Virtual TCP Companion)**;
+then, only if required, map `5000/tcp` to a trusted LAN host port. Choose a different
+host port if stable and Bleeding Edge are installed together. Port mapping does not
+enable the integration. Do not expose Virtual Companion TCP to the internet.
+
+Home Assistant uses **cold backups** of this app: it stops the app briefly to
+back up the SQLite database consistently. The default Docker AppArmor profile and
+protection mode remain enabled. Serial auto-detection requires `uart: true`, while
+Bluetooth availability is host-dependent. The app does not request host networking,
+Docker API access, or extra Supervisor privileges. Bots can write to `/share` and
+access app data; run only trusted bots.
+
+## Known limitations
+
+- The upstream MESHRIK frontend currently uses root-absolute URLs for assets,
+  API requests, the service worker and navigation, which may escape the Home Assistant
+  ingress prefix. See [wrapper issue #9](https://github.com/Bjorkan/HA-MESHRIK/issues/9)
+  and [upstream issue #72](https://github.com/Bjorkan/MESHRIK/issues/72). Fixing this
+  requires upstream prefix-aware routing and live Supervisor verification.
+- BLE support in containers varies by host. Prefer serial or TCP when it is unreliable.
+- Basic Auth protects HTTP access, **not** unauthenticated Virtual Companion TCP.
+- The stable and experimental channels use separate app storage and databases.
+
+## License
+
+This Home Assistant wrapper is distributed under the
+[MIT license](https://github.com/Bjorkan/HA-MESHRIK/blob/main/LICENSE).
+MESHRIK and its dependencies retain their respective upstream license terms.

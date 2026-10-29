@@ -2,7 +2,7 @@ name: "MESHRIK"
 version: "3.17.1.6"
 slug: "meshrik"
 description: "MESHRIK web interface for MeshCore radio networks (stable channel)"
-url: "https://github.com/Bjorkan/HA-MESHRIK"
+url: "https://github.com/Bjorkan/HA-MESHRIK/tree/main/meshrik"
 arch:
   - amd64
   - aarch64
@@ -10,22 +10,23 @@ image: "ghcr.io/bjorkan/ha-meshrik/meshrik-app"
 ingress: true
 ingress_port: 8000
 ingress_stream: true
+# SQLite backups must be taken while the database is not being written.
+backup: cold
 ports:
   8000/tcp: null
-  5000/tcp: 5000
+  5000/tcp: null
 ports_description:
   8000/tcp: Web interface port (for external access via reverse proxy)
-  5000/tcp: Virtual Companion TCP (trusted LAN only; no authentication or TLS)
+  5000/tcp: Virtual Companion TCP (off by default; trusted LAN only; no authentication or TLS)
 panel_icon: "mdi:human-greeting-proximity"
 panel_title: "MESHRIK"
-hassio_api: true
 services:
   - mqtt:want
 bluetooth: true
 uart: true
 map:
-  - data:rw
-  - share:rw
+  - type: share
+    read_only: false
 options:
   serial_port: ""
   serial_baudrate: 115200
@@ -58,13 +59,13 @@ schema:
   serial_port: str?
   serial_baudrate: int
   tcp_host: str?
-  tcp_port: int
+  tcp_port: port
   ble_address: str?
-  ble_pin: str?
+  ble_pin: password?
   log_level: list(DEBUG|INFO|WARNING|ERROR)
   disable_bots: bool
   basic_auth_username: str?
-  basic_auth_password: str?
+  basic_auth_password: password?
   enable_message_poll_fallback: bool
   force_channel_slot_reconfigure: bool
   skip_post_connect_sync: bool
@@ -80,5 +81,5 @@ schema:
   startup_allow_periodic_offload: bool
   startup_enable_telemetry_collection: bool
   auto_reboot_on_clock_skew: bool
-  login_response_timeout_seconds: int
+  login_response_timeout_seconds: int(1,60)
   http_startup_timeout_seconds: int(30,600)

@@ -11,6 +11,7 @@ on:
       - '.github/scripts/**'
       - '.github/workflows/build-publish*.yml'
       - 'README.md'
+      - 'repository.yaml'
   pull_request:
     branches: [main]
     paths:
@@ -21,6 +22,7 @@ on:
       - '.github/scripts/**'
       - '.github/workflows/build-publish*.yml'
       - 'README.md'
+      - 'repository.yaml'
   workflow_dispatch:
 
 permissions:
@@ -109,9 +111,11 @@ jobs:
           assert d.get('ingress') == True
           assert isinstance(d.get('ingress_port'), int)
           assert isinstance(d.get('arch'), list) and set(d['arch']) == {'amd64', 'aarch64'}
-          assert d.get('hassio_api') == True
+          assert not d.get('hassio_api', False)
           assert isinstance(d.get('services'), list) and 'mqtt:want' in d['services']
-          assert isinstance(d.get('map'), list) and 'data:rw' in d['map']
+          assert isinstance(d.get('map'), list) and {'type': 'share', 'read_only': False} in d['map']
+          assert d.get('backup') == 'cold'
+          assert d['ports']['5000/tcp'] is None
           assert isinstance(d.get('options'), dict)
           assert isinstance(d.get('schema'), dict)
           assert sorted(d['options'].keys()) == sorted(d['schema'].keys()), 'options/schema mismatch'
@@ -134,9 +138,11 @@ jobs:
           assert d.get('ingress') == True
           assert isinstance(d.get('ingress_port'), int)
           assert isinstance(d.get('arch'), list) and set(d['arch']) == {'amd64', 'aarch64'}
-          assert d.get('hassio_api') == True
+          assert not d.get('hassio_api', False)
           assert isinstance(d.get('services'), list) and 'mqtt:want' in d['services']
-          assert isinstance(d.get('map'), list) and 'data:rw' in d['map']
+          assert isinstance(d.get('map'), list) and {'type': 'share', 'read_only': False} in d['map']
+          assert d.get('backup') == 'cold'
+          assert d['ports']['5000/tcp'] is None
           assert isinstance(d.get('options'), dict)
           assert isinstance(d.get('schema'), dict)
           assert sorted(d['options'].keys()) == sorted(d['schema'].keys()), 'options/schema mismatch'
@@ -285,7 +291,14 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y jq
 
       - name: Run startup wrapper test suite
-        run: bash tests/test-run.sh
+        run: |
+          if bash -x tests/test-run.sh >"${RUNNER_TEMP}/meshrik-wrapper-trace.log" 2>&1; then
+            grep -F 'All startup wrapper tests passed.' "${RUNNER_TEMP}/meshrik-wrapper-trace.log"
+          else
+            echo "Wrapper tests failed. Last 160 trace lines:" >&2
+            tail -n 160 "${RUNNER_TEMP}/meshrik-wrapper-trace.log" >&2
+            exit 1
+          fi
 
       - name: Verify upstream startup policies and renamed manifests
         run: |

@@ -1,0 +1,85 @@
+configuration:
+  serial_port:
+    name: "Serial device"
+    description: "Path such as /dev/ttyUSB0; leave empty to auto-detect. Serial access requires broad UART access."
+  serial_baudrate:
+    name: "Serial baud rate"
+    description: "Baud rate used for the serial connection, usually 115200."
+  tcp_host:
+    name: "Radio TCP host"
+    description: "Host name or IP of the radio device; leave empty if not using TCP."
+  tcp_port:
+    name: "Radio TCP port"
+    description: "TCP port of the radio connection, not the Virtual Companion listener."
+  ble_address:
+    name: "BLE device address"
+    description: "Bluetooth address of the radio; BLE inside containers is best effort."
+  ble_pin:
+    name: "BLE PIN"
+    description: "PIN for the Bluetooth radio; leave empty if not needed."
+  log_level:
+    name: "Log level"
+    description: "Amount of diagnostic logging produced by MESHRIK."
+  disable_bots:
+    name: "Disable Python bots"
+    description: "Recommended when untrusted operators can reach the app; bots execute Python with app permissions."
+  basic_auth_username:
+    name: "External HTTP username"
+    description: "Optional HTTP Basic Auth user for non-ingress access. Set together with the password and use HTTPS."
+  basic_auth_password:
+    name: "External HTTP password"
+    description: "HTTP Basic Auth password for non-ingress access; never expose this over plain HTTP."
+  enable_message_poll_fallback:
+    name: "Fallback message polling"
+    description: "Poll for messages when normal event delivery is insufficient."
+  force_channel_slot_reconfigure:
+    name: "Reconfigure channel slots on connect"
+    description: "Advanced: force channel-slot configuration at connection time; may change radio settings."
+  skip_post_connect_sync:
+    name: "Deprecated: skip connection sync"
+    description: "Legacy override: forces passive startup even if the policy is sync or full. Prefer Startup policy."
+  startup_policy:
+    name: "Startup policy"
+    description: "Recommended: sync (read-only snapshots). Passive reads less. Full only permits separately enabled maintenance actions."
+  passive_startup:
+    name: "Deprecated: force passive startup"
+    description: "Legacy override: when enabled, forces passive startup regardless of Startup policy."
+  startup_export_private_key:
+    name: "SENSITIVE: export private key"
+    description: "Full mode only: permits export of private radio keys into app storage. Protect backups and exports."
+  startup_sync_clock:
+    name: "ADVANCED: synchronize radio clock"
+    description: "Full mode only: writes the clock of the connected radio."
+  startup_apply_flood_scope:
+    name: "ADVANCED: apply flood scope"
+    description: "Full mode only: writes the configured flood scope to the radio."
+  startup_send_advertisement:
+    name: "TRANSMIT: send advertisements"
+    description: "Full mode only: permits RF advertisements at startup and periodically."
+  startup_drain_messages:
+    name: "ADVANCED: drain radio messages"
+    description: "Full mode only: drains pending messages; may offload radio-resident information."
+  startup_reconcile_contacts:
+    name: "ADVANCED: reconcile contacts"
+    description: "Full mode only: performs contact maintenance on the radio."
+  startup_clear_channel_slots:
+    name: "DESTRUCTIVE: clear channel slots"
+    description: "Full mode only: can delete channel data on the physical radio. Back up first; leave disabled unless intentional."
+  startup_allow_periodic_offload:
+    name: "DESTRUCTIVE: periodic offload"
+    description: "Full mode only: can remove radio-resident contacts or channel data. Back up first."
+  startup_enable_telemetry_collection:
+    name: "Collect startup telemetry"
+    description: "Full mode only: enables extra radio telemetry polling."
+  auto_reboot_on_clock_skew:
+    name: "ADVANCED: auto-reboot on clock skew"
+    description: "Opt in to rebooting the physical radio during clock correction."
+  login_response_timeout_seconds:
+    name: "RF login timeout (seconds)"
+    description: "Time to wait for a radio login response, 1 to 60 seconds."
+  http_startup_timeout_seconds:
+    name: "HTTP startup timeout (seconds)"
+    description: "Maximum startup wait for the HTTP API, 30 to 600 seconds; separate from radio readiness."
+network:
+  8000/tcp: "Optional external web port (ingress needs no host mapping); enable only with HTTPS and authentication."
+  5000/tcp: "Unauthenticated Virtual Companion TCP (no TLS). Off by default; expose only on a trusted LAN."
