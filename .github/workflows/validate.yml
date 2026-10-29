@@ -291,7 +291,14 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y jq
 
       - name: Run startup wrapper test suite
-        run: bash tests/test-run.sh
+        run: |
+          if bash -x tests/test-run.sh >"${RUNNER_TEMP}/meshrik-wrapper-trace.log" 2>&1; then
+            grep -F 'All startup wrapper tests passed.' "${RUNNER_TEMP}/meshrik-wrapper-trace.log"
+          else
+            echo "Wrapper tests failed. Last 160 trace lines:" >&2
+            tail -n 160 "${RUNNER_TEMP}/meshrik-wrapper-trace.log" >&2
+            exit 1
+          fi
 
       - name: Verify upstream startup policies and renamed manifests
         run: |
