@@ -7,7 +7,6 @@
 - Mask sensitive credentials, bound login timeout, and add English/Swedish labels with prominent destructive-operation warnings.
 - Add app-store introductions, setup/security documentation and manifest translation regression tests.
 
-
 ## Unreleased
 
 - Publish Virtual Companion TCP on host port 5000 by default. Enable the integration separately

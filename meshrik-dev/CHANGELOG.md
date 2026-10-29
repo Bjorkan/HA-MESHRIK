@@ -7,48 +7,40 @@
 - Mask sensitive credentials, bound login timeout, and add English/Swedish labels with prominent destructive-operation warnings.
 - Add app-store introductions, setup/security documentation and manifest translation regression tests.
 
-
 ## 2026.10.25.62
 
 - Package MESHRIK edge commit [`bf01dc45fe7ae75814e4ccae7e0c7a55f4c04109`](https://github.com/Bjorkan/MESHRIK/commit/bf01dc45fe7ae75814e4ccae7e0c7a55f4c04109).
 - Pin source image digest `sha256:4286c08af4e4dd5d0cc2c972ef2ebfe5af32f0fad6546b0cb3289cf33edd402c`.
-
 
 ## 2026.10.23.58
 
 - Package MESHRIK edge commit [`1546416a99519050f4a9a09036bb53e44c69b805`](https://github.com/Bjorkan/MESHRIK/commit/1546416a99519050f4a9a09036bb53e44c69b805).
 - Pin source image digest `sha256:efc7cc778dcc19bda8e99e4ba0b1cacc8185e3ac5a82c7546f0703dfb56f358b`.
 
-
 ## 2026.10.23.57
 
 - Package MESHRIK edge commit [`c0440d964c511675e38514bfd73788715df4b5bd`](https://github.com/Bjorkan/MESHRIK/commit/c0440d964c511675e38514bfd73788715df4b5bd).
 - Pin source image digest `sha256:cc7ba4980ebb98164991017e0093a952df151cd7f58abd0fa9696b629652b282`.
-
 
 ## 2026.10.23.56
 
 - Package MESHRIK edge commit [`82d70ef5e499ebf81502318ad865e38fe330fea6`](https://github.com/Bjorkan/MESHRIK/commit/82d70ef5e499ebf81502318ad865e38fe330fea6).
 - Pin source image digest `sha256:4b4ab21218b427456a90f52e260c11775b2b1b4a7613dc9d9e3a1b2578f81811`.
 
-
 ## 2026.10.23.55
 
 - Package MESHRIK edge commit [`50f2900bfb2148c6c86c9d55207b8fc96159d5ae`](https://github.com/Bjorkan/MESHRIK/commit/50f2900bfb2148c6c86c9d55207b8fc96159d5ae).
 - Pin source image digest `sha256:d3e59a0f7b8e1c20e4d6c9b79505fe357b1cde73fbce4d5b71182d1caa5d5421`.
-
 
 ## 2026.10.22.53
 
 - Package MESHRIK edge commit [`94ded5518eeb217dd50eb8564ff1c0812ece5bee`](https://github.com/Bjorkan/MESHRIK/commit/94ded5518eeb217dd50eb8564ff1c0812ece5bee).
 - Pin source image digest `sha256:122141ad2517cb40ef7c8a4c21ce375aaa688c822b7e6300566cb7d098ebd7c7`.
 
-
 ## 2026.10.21.52
 
 - Package MESHRIK edge commit [`c44757aaca3e19d46c3c93e367eaf0ecdcc576a1`](https://github.com/Bjorkan/MESHRIK/commit/c44757aaca3e19d46c3c93e367eaf0ecdcc576a1).
 - Pin source image digest `sha256:75654732e093c0fe0ebe471d4b24aebbf4bf58e7f43aa0fd7e56d6a22ea59426`.
-
 
 ## Unreleased
 

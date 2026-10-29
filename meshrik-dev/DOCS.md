@@ -62,7 +62,6 @@ maintenance opt-in is enabled automatically. When switching modes, the deprecate
 Back up your radio and MESHRIK data before switching them on; destructive actions must never
 be used as part of passive startup smoke testing.
 
-
 Configuration, MQTT bootstrap, ingress, radio connection methods, and security guidance match the stable app, including the `passive`/`sync`/`full` startup policies and individual opt-ins. `sync` is read-only with respect to the radio; `full` alone never authorizes writes, advertising or deletion. The `startup_clear_channel_slots` and `startup_allow_periodic_offload` options can remove device data and must remain off unless deliberately authorized. MQTT bootstrap honors the Supervisor broker's TLS setting and preserves an existing `mqtt_ha` fanout. A bounded background helper retries temporary Supervisor, broker-service, and MESHRIK API failures without delaying or restarting the radio process; missing MQTT remains optional. Update an existing fanout in the MESHRIK UI, or delete it and restart, when Supervisor broker credentials or settings change. This app uses the `meshrik-dev` slug and therefore has storage separate from the stable app. A legacy `remoteterm-dev` installation is a different app and its data is not migrated automatically.
 
 Startup uses the preinstalled image environment and never runs `uv sync` or downloads development
